@@ -1,0 +1,12 @@
+flask
+scikit-learn
+pandas
+numpy
+joblib
+mysql-connector-python
+flask-cors
+python-dotenv
+pytest
+faker
+PyJWT
+pyngrok

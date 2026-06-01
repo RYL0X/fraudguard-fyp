@@ -1,0 +1,30 @@
+[2026-05-12 11:39:43] EMAIL SENT - Amount: 46060.41  Merchant: Unknown  Risk: 100.0%
+[2026-05-12 11:39:45] EMAIL ERROR - Gmail authentication failed — check GMAIL_APP_PASSWORD in .env
+[2026-05-12 11:39:45] EMAIL DELIVERY FAILED - Gmail authentication failed — check GMAIL_APP_PASSWORD in .env
+[2026-05-12 18:38:27] EMAIL SENT - Amount: 46020.14  Merchant: Unknown  Risk: 100.0%
+[2026-05-12 18:45:13] EMAIL SENT - Amount: 40340.11  Merchant: Unknown  Risk: 100.0%
+[2026-05-12 18:52:17] EMAIL SENT - Amount: 48861.21  Merchant: Unknown  Risk: 100.0%
+[2026-05-12 18:52:21] EMAIL SENT - Amount: 43066.47  Merchant: Unknown  Risk: 100.0%
+[2026-05-13 20:59:53] EMAIL SENT - Amount: 48518.11  Merchant: Unknown  Risk: 100.0%
+[2026-05-13 22:06:14] EMAIL SENT - Amount: 4500  Merchant: Unknown  Risk: 100.0%
+[2026-05-13 22:15:24] EMAIL SENT - Amount: 1222  Merchant: Unknown  Risk: 100.0%
+[2026-05-13 22:15:28] EMAIL SENT - Amount: 1222  Merchant: Unknown  Risk: 100.0%
+[2026-05-13 22:15:29] EMAIL SENT - Amount: 1222  Merchant: Unknown  Risk: 100.0%
+[2026-05-13 22:15:30] EMAIL SENT - Amount: 1222  Merchant: Unknown  Risk: 100.0%
+[2026-05-13 22:15:30] EMAIL SENT - Amount: 1222  Merchant: Unknown  Risk: 100.0%
+[2026-05-13 22:15:31] EMAIL SENT - Amount: 1222  Merchant: Unknown  Risk: 100.0%
+[2026-05-13 22:15:38] EMAIL SENT - Amount: 1222  Merchant: Unknown  Risk: 100.0%
+[2026-05-13 22:15:39] EMAIL SENT - Amount: 1222  Merchant: Unknown  Risk: 100.0%
+[2026-05-13 22:15:40] EMAIL SENT - Amount: 1222  Merchant: Unknown  Risk: 100.0%
+[2026-05-13 22:15:40] EMAIL SENT - Amount: 1222  Merchant: Unknown  Risk: 100.0%
+[2026-05-13 22:15:51] EMAIL SENT - Amount: 1222  Merchant: Unknown  Risk: 100.0%
+[2026-05-13 22:15:53] EMAIL SENT - Amount: 1222  Merchant: Unknown  Risk: 100.0%
+[2026-05-13 22:15:56] EMAIL SENT - Amount: 1222  Merchant: Unknown  Risk: 100.0%
+[2026-05-13 23:00:28] EMAIL SENT - Amount: 4500  Merchant: Unknown  Risk: 100.0%
+[2026-05-13 23:00:58] EMAIL SENT - Amount: 1500  Merchant: Unknown  Risk: 59.0%
+[2026-05-16 11:57:12] EMAIL SENT - Amount: 45000  Merchant: Test Shop  Risk: 100.0%
+[2026-05-16 12:00:35] EMAIL SENT - Amount: 45000  Merchant: Test Shop  Risk: 100.0%
+[2026-05-16 12:06:26] EMAIL SENT - Amount: 45000  Merchant: Test Shop  Risk: 100.0%
+[2026-05-20 12:04:23] EMAIL SENT - Amount: 4500  Merchant: Unknown  Risk: 56.0%
+[2026-05-22 17:56:00] EMAIL SENT - Amount: 45000  Merchant: Test Shop  Risk: 100.0%
+[2026-05-22 17:57:20] EMAIL SENT - Amount: 45000  Merchant: Test Shop  Risk: 100.0%

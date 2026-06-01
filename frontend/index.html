@@ -1,0 +1,1488 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FraudGuard — Real-Time Fraud Detection Dashboard</title>
+  <meta name="description"
+    content="ML-powered fraud detection dashboard. Monitor transactions, detect anomalies, and predict fraud in real time." />
+  <link rel="stylesheet" href="/frontend/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <script>
+    const API_BASE = "http://localhost:5000/api";
+
+    // ── Auth guard: redirect to /login if no token present
+    (function authGuard() {
+      var token = localStorage.getItem('fg_token') || sessionStorage.getItem('fg_token');
+      if (!token) { window.location.replace('/login'); }
+      // Expose token globally for API calls
+      window.FG_TOKEN = token;
+      try {
+        var stored = localStorage.getItem('fg_user') || sessionStorage.getItem('fg_user');
+        window.FG_USER = stored ? JSON.parse(stored) : null;
+      } catch (e) { window.FG_USER = null; }
+    })();
+
+    // ── Logout function
+    function logout() {
+      localStorage.removeItem('fg_token');
+      localStorage.removeItem('fg_user');
+      sessionStorage.removeItem('fg_token');
+      sessionStorage.removeItem('fg_user');
+      fetch(window.API_BASE + '/auth/logout').catch(function () { });
+      window.location.href = '/login';
+    }
+  </script>
+  <script src="/frontend/app.js" defer></script>
+</head>
+
+<body class="light-theme">
+
+  <!-- ══════════════════════════════════════════════════════════
+     SIDEBAR
+══════════════════════════════════════════════════════════ -->
+  <aside class="sidebar" role="navigation" aria-label="Main navigation">
+    <div class="sidebar-logo">
+      <div class="logo-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+        </svg>
+      </div>
+      <div class="logo-text">
+        <span class="brand-name">FraudGuard</span>
+        <span class="brand-sub">INSTITUTIONAL VIGILANCE</span>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-item active" id="nav-dashboard">
+        <span class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+          </svg>
+        </span>
+        Dashboard
+      </div>
+      <div class="nav-item" id="nav-transactions">
+        <span class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+            <line x1="1" y1="10" x2="23" y2="10"></line>
+          </svg>
+        </span>
+        Transactions
+      </div>
+      <div class="nav-item" id="nav-analytics">
+        <span class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+          </svg>
+        </span>
+        Analytics
+      </div>
+      <div class="nav-item" id="nav-predict">
+        <span class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="16" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+          </svg>
+        </span>
+        Predict
+      </div>
+      <div class="nav-item" id="nav-alerts">
+        <span class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+          </svg>
+        </span>
+        Alerts
+      </div>
+      <div class="nav-item" id="nav-settings">
+        <span class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path
+              d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+            </path>
+          </svg>
+        </span>
+        Settings
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="status-dot" id="api-status"><span class="dot-green"></span> API Connected</div>
+      <div class="footer-link" id="support-btn" onclick="openSupportModal()" style="cursor:pointer;" role="button"
+        aria-label="Support">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+          <line x1="12" y1="17" x2="12.01" y2="17"></line>
+        </svg>
+        Support
+      </div>
+      <div class="footer-link" id="logout-btn" onclick="logout()" style="cursor:pointer;" role="button"
+        aria-label="Sign out">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+          <polyline points="16 17 21 12 16 7"></polyline>
+          <line x1="21" y1="12" x2="9" y2="12"></line>
+        </svg>
+        Logout
+      </div>
+    </div>
+  </aside>
+
+  <!-- ══════════════════════════════════════════════════════════
+     MAIN
+══════════════════════════════════════════════════════════ -->
+  <main class="main">
+
+    <!-- API Offline Banner -->
+    <div id="api-error-banner"
+      style="display:none; background:var(--danger); color:white; padding:12px; text-align:center; font-weight:600; font-size:0.95rem; z-index:1000; position:relative; box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+      ⚠️ API Offline — Run: <code
+        style="background:rgba(0,0,0,0.2);padding:2px 6px;border-radius:4px;margin-left:4px;">python run.py</code> in
+      terminal
+    </div>
+
+    <!-- Global Topbar -->
+    <header class="topbar">
+      <div class="topbar-search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <input type="text" id="search-input" placeholder="Search transactions, accounts, or IDs...">
+      </div>
+      <div class="topbar-actions">
+        <!-- Bell notification button -->
+        <button id="topbar-bell-btn" class="notification-icon" aria-label="Open notifications"
+          style="background:none;border:none;cursor:pointer;position:relative;padding:0;display:flex;align-items:center;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+          </svg>
+          <span class="badge-dot" id="topbar-notif-badge"></span>
+        </button>
+        <!-- Profile with dropdown -->
+        <div class="user-profile" style="position:relative;">
+          <div class="user-info">
+            <span class="user-name" id="topbar-user-name">Chief Analyst</span>
+            <span class="user-role" id="topbar-user-role">Tier-3 Investigator</span>
+          </div>
+          <div class="user-avatar" id="topbar-user-avatar" style="cursor:pointer;" title="Account options">JD</div>
+          <!-- Profile dropdown -->
+          <div class="profile-dropdown" id="profile-dropdown">
+            <div class="pd-user-info">
+              <div class="pd-avatar" id="pd-avatar">JD</div>
+              <div>
+                <div class="pd-name" id="pd-name">Chief Analyst</div>
+                <div class="pd-email" id="pd-email">admin@fraudguard.com</div>
+                <span class="pd-role-badge">Tier-3 Investigator</span>
+              </div>
+            </div>
+            <div class="pd-divider"></div>
+            <div class="pd-menu">
+              <button class="pd-item" onclick="openProfileModal()">
+                <span class="pd-icon">👤</span> My Profile
+              </button>
+              <button class="pd-item" onclick="openChangePasswordModal()">
+                <span class="pd-icon">🔐</span> Change Password
+              </button>
+              <button class="pd-item" onclick="showActivityPanel()">
+                <span class="pd-icon">📊</span> My Activity
+              </button>
+              <button class="pd-item" onclick="showPreferences()">
+                <span class="pd-icon">⚙️</span> Preferences
+              </button>
+            </div>
+            <div class="pd-divider"></div>
+            <button class="pd-item pd-signout" onclick="logout()">
+              <span class="pd-icon">🚪</span> Sign Out
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- VIEW: DASHBOARD -->
+    <div id="view-dashboard" class="view active">
+
+      <div class="content">
+        <div class="page-header">
+          <div class="page-title">
+            <h1>System Overview</h1>
+            <p>Real-time surveillance of institutional transaction flow.</p>
+            <span id="last-updated" style="display:none;"></span>
+            <span id="live-badge" style="display:none;"></span>
+          </div>
+          <div class="page-actions">
+            <!-- ── Time-Range Picker ── -->
+            <div class="trp-wrap" id="trp-wrap">
+              <button class="btn btn-outline trp-trigger" id="trp-trigger" aria-haspopup="true" aria-expanded="false">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="4" width="18" height="18" rx="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" />
+                  <line x1="8" y1="2" x2="8" y2="6" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
+                <span id="trp-label">LAST 24 HOURS</span>
+                <svg class="trp-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  stroke-width="2">
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+              <div class="trp-dropdown" id="trp-dropdown">
+                <!-- Quick presets -->
+                <div class="trp-section-title">QUICK RANGES</div>
+                <div class="trp-presets">
+                  <button class="trp-preset" data-hours="1">Last 1 hour</button>
+                  <button class="trp-preset" data-hours="2">Last 2 hours</button>
+                  <button class="trp-preset" data-hours="3">Last 3 hours</button>
+                  <button class="trp-preset" data-hours="4">Last 4 hours</button>
+                  <button class="trp-preset" data-hours="5">Last 5 hours</button>
+                  <button class="trp-preset" data-hours="6">Last 6 hours</button>
+                  <button class="trp-preset" data-hours="7">Last 7 hours</button>
+                  <button class="trp-preset" data-hours="8">Last 8 hours</button>
+                  <button class="trp-preset trp-active" data-hours="24">Last 24 hours</button>
+                  <button class="trp-preset" data-hours="48">Last 48 hours</button>
+                </div>
+                <div class="trp-divider"></div>
+                <div class="trp-section-title">DATE RANGES</div>
+                <div class="trp-presets">
+                  <button class="trp-preset" data-days="3">Last 3 days</button>
+                  <button class="trp-preset" data-days="4">Last 4 days</button>
+                  <button class="trp-preset" data-days="5">Last 5 days</button>
+                  <button class="trp-preset" data-days="7">Last week</button>
+                  <button class="trp-preset" data-days="14">Last 2 weeks</button>
+                  <button class="trp-preset" data-days="30">Last month</button>
+                  <button class="trp-preset" data-days="90">Last 3 months</button>
+                  <button class="trp-preset" data-all="1">All time</button>
+                </div>
+                <div class="trp-divider"></div>
+                <!-- Custom calendar range -->
+                <div class="trp-section-title">CUSTOM RANGE</div>
+                <div class="trp-custom">
+                  <div class="trp-field">
+                    <label for="trp-from">FROM</label>
+                    <input type="datetime-local" id="trp-from" />
+                  </div>
+                  <div class="trp-field">
+                    <label for="trp-to">TO</label>
+                    <input type="datetime-local" id="trp-to" />
+                  </div>
+                  <button class="trp-apply-btn" id="trp-apply">Apply Range</button>
+                </div>
+              </div>
+            </div>
+            <!-- ── Force Refresh ── -->
+            <button class="btn btn-navy" id="refresh-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.92-10.26l5.58 5.69" />
+              </svg>
+              FORCE REFRESH
+            </button>
+            <button id="new-txn-btn" style="display:none;">New Txn</button>
+          </div>
+
+        </div>
+
+        <section class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-label">TOTAL VOLUME</div>
+            <div class="kpi-value" id="kpi-total">10,000</div>
+            <div class="kpi-sub positive"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2">
+                <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
+                <polyline points="17 6 23 6 23 12"></polyline>
+              </svg> +12% from avg.</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">FRAUD DETECTED</div>
+            <div class="kpi-value alert-text" id="kpi-fraud">1,000</div>
+            <div class="kpi-sub danger"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z">
+                </path>
+                <line x1="12" y1="9" x2="12" y2="13"></line>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+              </svg> High Alert Status</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">FRAUD RATE</div>
+            <div class="kpi-value" id="kpi-rate">10.0%</div>
+            <div class="kpi-bar-wrap">
+              <div class="kpi-bar-fill" style="width: 10%;"></div>
+            </div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">AVG TRANSACTION</div>
+            <div class="kpi-value" id="kpi-amount">$247.66</div>
+            <div class="kpi-sub neutral">Normal variance detected</div>
+          </div>
+        </section>
+
+        <section class="charts-row">
+          <div class="card flex-2">
+            <div class="card-header">
+              <h3 class="card-title">Risk Velocity Chart</h3>
+              <div class="chart-legend">
+                <span class="legend-item"><span class="dot bg-navy"></span> Legit</span>
+                <span class="legend-item"><span class="dot bg-red"></span> Fraud</span>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="chart-wrap">
+                <canvas id="trendChart"></canvas>
+              </div>
+            </div>
+          </div>
+          <div class="card flex-1">
+            <div class="card-header">
+              <h3 class="card-title">Threat Vectors</h3>
+            </div>
+            <div class="card-body">
+              <div class="vector-list" id="catList">
+                <!-- Dynamically populated -->
+                <div class="vector-item">
+                  <div class="vector-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="2">
+                      <circle cx="9" cy="21" r="1"></circle>
+                      <circle cx="20" cy="21" r="1"></circle>
+                      <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                    </svg></div>
+                  <div class="vector-info">
+                    <div class="v-name">E-Commerce</div>
+                    <div class="v-sub">42% of fraud</div>
+                  </div>
+                  <div class="vector-stats">
+                    <div class="v-count">420</div>
+                    <div class="v-trend danger">↑ 5%</div>
+                  </div>
+                </div>
+                <div class="vector-item">
+                  <div class="vector-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="2">
+                      <rect x="2" y="5" width="20" height="14" rx="2" ry="2"></rect>
+                      <line x1="2" y1="10" x2="22" y2="10"></line>
+                    </svg></div>
+                  <div class="vector-info">
+                    <div class="v-name">ATM Cashout</div>
+                    <div class="v-sub">28% of fraud</div>
+                  </div>
+                  <div class="vector-stats">
+                    <div class="v-count">280</div>
+                    <div class="v-trend neutral">~ stable</div>
+                  </div>
+                </div>
+                <div class="vector-item">
+                  <div class="vector-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="2">
+                      <path
+                        d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z">
+                      </path>
+                    </svg></div>
+                  <div class="vector-info">
+                    <div class="v-name">Travel & Leisure</div>
+                    <div class="v-sub">15% of fraud</div>
+                  </div>
+                  <div class="vector-stats">
+                    <div class="v-count">150</div>
+                    <div class="v-trend success">↓ 2%</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="table-section card">
+          <div class="card-header table-header">
+            <h3 class="card-title">Recent Transactions Pulse</h3>
+            <a href="#" class="view-all" id="view-all-register">View All Register</a>
+          </div>
+
+          <!-- Hidden elements needed for app.js -->
+          <input type="text" id="search-input" style="display:none;" />
+          <select id="fraud-filter" style="display:none;">
+            <option value=""></option>
+          </select>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>TRANSACTION ID</th>
+                  <th>MERCHANT</th>
+                  <th>AMOUNT</th>
+                  <th>TIMESTAMP</th>
+                  <th>STATUS</th>
+                  <th>ACTION</th>
+                </tr>
+              </thead>
+              <tbody id="txn-tbody">
+                <!-- Dynamically populated -->
+                <tr>
+                  <td colspan="6" style="text-align:center; padding: 20px;">Loading transactions...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="pagination" style="display:none;">
+            <span id="pag-info"></span>
+            <div id="pag-btns"></div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <!-- VIEW: PREDICT -->
+    <div id="view-predict" class="view hidden">
+      <div class="content">
+        <div class="page-header">
+          <div class="page-title">
+            <h1>Transaction Risk Analyzer</h1>
+            <p>Input transaction details for real-time risk assessment using the institutional model.</p>
+          </div>
+        </div>
+
+        <div class="predict-layout">
+          <div class="card predict-form-card">
+            <form class="predict-form" onsubmit="return false">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="p-amount">TRANSACTION AMOUNT (USD)</label>
+                  <div class="input-with-icon">
+                    <span class="icon">$</span>
+                    <input type="number" id="p-amount" min="0.01" step="0.01" placeholder="0.00" value="4500" />
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label for="p-dow">DAY OF WEEK</label>
+                  <select id="p-dow">
+                    <option value="0">Monday</option>
+                    <option value="1">Tuesday</option>
+                    <option value="2">Wednesday</option>
+                    <option value="3">Thursday</option>
+                    <option value="4">Friday</option>
+                    <option value="5">Saturday</option>
+                    <option value="6" selected>Sunday</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="p-hour">HOUR OF DAY (0-23)</label>
+                <div class="slider-wrap">
+                  <input type="range" id="p-hour" min="0" max="23" value="12" />
+                  <div class="slider-labels">
+                    <span>00:00</span>
+                    <span>06:00</span>
+                    <span>12:00</span>
+                    <span>18:00</span>
+                    <span>23:59</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="p-category">CATEGORY</label>
+                  <select id="p-category">
+                    <option value="retail">Retail / E-commerce</option>
+                    <option value="food">Food</option>
+                    <option value="travel">Travel</option>
+                    <option value="entertainment">Entertainment</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>MERCHANT NAME</label>
+                  <input type="text" placeholder="e.g., GLOBAL VENTURES INC" />
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>LOCATION</label>
+                <div class="input-with-icon">
+                  <span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      stroke-width="2">
+                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                      <circle cx="12" cy="10" r="3"></circle>
+                    </svg></span>
+                  <input type="text" placeholder="London, United Kingdom" />
+                </div>
+              </div>
+
+              <label class="checkbox-wrap" style="display:none;">
+                <input type="checkbox" id="p-foreign" checked />
+              </label>
+
+              <button class="btn btn-navy btn-block" id="predict-btn">ANALYZE RISK</button>
+            </form>
+          </div>
+
+          <div class="predict-result-card" id="predict-result">
+            <div class="card result-eval-card">
+              <h3 class="text-center">Risk Evaluation</h3>
+
+              <div class="risk-score-display">
+                <div class="risk-circle-wrap">
+                  <div class="risk-circle" id="result-risk-circle">
+                    <span class="score-value" id="result-risk-pct">74%</span>
+                    <span class="score-label">RISK SCORE</span>
+                  </div>
+                </div>
+                <div class="verdict-badge suspicious" id="result-risk">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z">
+                    </path>
+                    <line x1="12" y1="9" x2="12" y2="13"></line>
+                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                  </svg>
+                  SUSPICIOUS
+                </div>
+              </div>
+              <!-- Hidden elements for app.js compatibility -->
+              <div id="result-verdict" style="display:none;"></div>
+              <div id="conf-fill" style="display:none;"></div>
+              <div id="conf-text" style="display:none;"></div>
+
+              <div class="conf-score-row">
+                <span>Confidence Score:</span>
+                <span class="fw-bold" id="conf-score-val">0.912</span>
+              </div>
+
+              <div class="top-factors">
+                <div class="factor-label">TOP 3 RISK FACTORS</div>
+                <div class="factor-item">
+                  <div class="factor-icon red"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+                    </svg></div>
+                  <div class="factor-text">
+                    <strong>Geo-Locational Anomaly</strong>
+                    <p>Merchant location exceeds historical user radius (4,200km offset).</p>
+                  </div>
+                </div>
+                <div class="factor-item">
+                  <div class="factor-icon orange"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg></div>
+                  <div class="factor-text">
+                    <strong>Temporal Outlier</strong>
+                    <p>Transaction initiated during non-standard user activity window.</p>
+                  </div>
+                </div>
+                <div class="factor-item">
+                  <div class="factor-icon gray"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="2">
+                      <rect x="2" y="4" width="20" height="16" rx="2"></rect>
+                      <line x1="12" y1="12" x2="16" y2="12"></line>
+                      <circle cx="8" cy="12" r="2"></circle>
+                    </svg></div>
+                  <div class="factor-text">
+                    <strong>Velocity Spike</strong>
+                    <p>Third high-value transaction within the last 15-minute block.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="institutional-context">
+              <h4>Institutional Context</h4>
+              <p>This transaction was compared against 4.2M global banking signals and historical peer-group behaviors.
+              </p>
+              <button class="btn btn-outline-light">VIEW DATA MAP →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW: ALERTS -->
+    <div id="view-alerts" class="view hidden">
+      <div class="content">
+        <div class="page-header">
+          <div class="page-title">
+            <h1>Fraud Alerts Center</h1>
+            <p>Review and manage institutional security flags across the network.</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-navy" id="alert-export-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              EXPORT REPORT
+            </button>
+            <button class="btn btn-outline" id="system-audit-btn">SYSTEM AUDIT</button>
+          </div>
+        </div>
+
+        <!-- Alerts Search Bar -->
+        <div id="alerts-search-wrap" style="display:flex;align-items:center;gap:10px;background:#fff;border:1.5px solid #e2e8f0;border-radius:10px;padding:0 16px;margin-bottom:18px;box-shadow:0 1px 4px rgba(0,0,0,.06);transition:border-color .2s,box-shadow .2s;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" style="flex-shrink:0;">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input id="alerts-search-input" type="text" autocomplete="off"
+            placeholder="Search by transaction ID, merchant, or detection logic…"
+            style="flex:1;border:none;outline:none;background:transparent;font-family:inherit;font-size:.88rem;color:#0f172a;padding:13px 0;min-width:0;" />
+          <button id="alerts-search-clear" title="Clear search"
+            style="display:none;align-items:center;justify-content:center;background:none;border:none;cursor:pointer;padding:4px;color:#94a3b8;border-radius:50%;transition:color .2s;line-height:1;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Alerts Tabs Bar -->
+        <div class="alerts-tabs-bar" style="border-bottom: 1px solid var(--border); margin-bottom: 20px;">
+          <div class="alerts-tabs" id="alerts-tabs">
+            <button class="alert-tab active" data-tab="all" id="atab-all">ALL ALERTS</button>
+            <button class="alert-tab" data-tab="new" id="atab-new">NEW</button>
+            <button class="alert-tab" data-tab="reviewed" id="atab-reviewed">REVIEWED</button>
+            <button class="alert-tab" data-tab="resolved" id="atab-resolved">RESOLVED</button>
+          </div>
+          <div class="alerts-tabs-right">
+            <button class="alerts-filter-toggle" id="alerts-filter-toggle">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="4" y1="21" x2="4" y2="14" />
+                <line x1="4" y1="10" x2="4" y2="3" />
+                <line x1="12" y1="21" x2="12" y2="12" />
+                <line x1="12" y1="8" x2="12" y2="3" />
+                <line x1="20" y1="21" x2="20" y2="16" />
+                <line x1="20" y1="12" x2="20" y2="3" />
+                <line x1="1" y1="14" x2="7" y2="14" />
+                <line x1="9" y1="8" x2="15" y2="8" />
+                <line x1="17" y1="16" x2="23" y2="16" />
+              </svg>
+              Filters
+            </button>
+          </div>
+        </div>
+
+        <!-- Collapsible Filter Panel -->
+        <div class="alerts-filter-panel" id="alerts-filter-panel" style="display:none;">
+          <div class="card" style="padding:18px 24px;">
+            <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;">
+              <div>
+                <label
+                  style="font-size:.72rem;font-weight:700;color:#64748b;letter-spacing:.5px;display:block;margin-bottom:6px;">RISK
+                  LEVEL</label>
+                <select id="alert-risk-filter"
+                  style="padding:8px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:.85rem;background:#fff;outline:none;color:var(--text-primary);">
+                  <option value="">All Risk Levels</option>
+                  <option value="critical">Critical (90+)</option>
+                  <option value="elevated">Elevated (60-89)</option>
+                  <option value="low">Low (&lt;60)</option>
+                </select>
+              </div>
+              <div>
+                <label
+                  style="font-size:.72rem;font-weight:700;color:#64748b;letter-spacing:.5px;display:block;margin-bottom:6px;">ALERT
+                  TYPE</label>
+                <select id="alert-type-filter"
+                  style="padding:8px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:.85rem;background:#fff;outline:none;color:var(--text-primary);">
+                  <option value="">All Types</option>
+                  <option value="fraud">Fraud</option>
+                  <option value="suspicious">Suspicious</option>
+                </select>
+              </div>
+              <button class="btn btn-outline" id="alerts-filter-clear"
+                style="height:38px;padding:0 16px;font-size:.82rem;">Clear Filters</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Alerts List (dynamically rendered) -->
+        <div class="alerts-list" id="alerts-list">
+          <div style="text-align:center;padding:60px;color:var(--text-muted);">Loading alerts&hellip;</div>
+        </div>
+
+        <!-- Pagination Footer -->
+        <div id="alerts-pagination"
+          style="display:none;background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);">
+          <div
+            style="display:flex;align-items:center;justify-content:space-between;padding:14px 24px;flex-wrap:wrap;gap:10px;">
+            <span id="alerts-pag-info" style="font-size:.82rem;color:var(--text-muted);font-weight:500;"></span>
+            <div id="alerts-pag-btns" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"></div>
+          </div>
+        </div>
+
+        <!-- Floating Alert Button -->
+        <button class="fab red-fab-square" id="alerts-fab" title="View critical alerts">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- VIEW: SETTINGS -->
+    <div id="view-settings" class="view hidden">
+      <div class="content">
+        <div class="page-header">
+          <div class="page-title">
+            <h1>System Configuration</h1>
+            <p>Manage infrastructure parameters and institutional security protocols.</p>
+          </div>
+        </div>
+
+        <div class="settings-layout">
+          <!-- LEFT COLUMN -->
+          <div class="settings-col-left">
+            <div class="card p-24">
+              <div class="status-header">
+                <h3>System Status</h3>
+                <div class="status-badge green" id="settings-overall-status"><span class="dot-green"></span> All Systems
+                  Operational</div>
+              </div>
+              <div class="status-list">
+                <div class="status-item">
+                  <div class="status-name">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                    </svg>
+                    ML Model Active
+                  </div>
+                  <div class="status-val green" id="settings-ml-status">STABLE</div>
+                </div>
+                <div class="status-item">
+                  <div class="status-name">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+                      <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+                      <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+                    </svg>
+                    Database Connected
+                  </div>
+                  <div class="status-val green" id="settings-db-status">CONNECTED</div>
+                </div>
+                <div class="status-item">
+                  <div class="status-name">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="16 18 22 12 16 6"></polyline>
+                      <polyline points="8 6 2 12 8 18"></polyline>
+                    </svg>
+                    API Running
+                  </div>
+                  <div class="status-val green" id="settings-api-status">v2.4.1 LIVE</div>
+                </div>
+              </div>
+              <div class="training-date mt-4">
+                <span class="detail-label">LAST TRAINING DATE</span>
+                <div class="date-row">
+                  <span class="date-val" id="settings-train-date">Oct 24, 2023</span>
+                  <button class="btn-text" id="settings-retrain-btn">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.92-10.26l5.58 5.69" />
+                    </svg>
+                    Retrain Now
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="infrastructure-card mt-4">
+              <div class="infra-bg"></div>
+              <div class="infra-content">
+                <h3>Infrastructure Security</h3>
+                <p>Global surveillance nodes are encrypted and monitoring real-time flow.</p>
+              </div>
+            </div>
+
+            <div class="metrics-row mt-4">
+              <div class="card p-24 flex-1">
+                <span class="detail-label">UPTIME RATIO</span>
+                <div class="metric-val" id="settings-uptime">99.998%</div>
+                <div class="metric-bar mt-2"></div>
+              </div>
+              <div class="card p-24 flex-1">
+                <span class="detail-label">API LATENCY</span>
+                <div class="metric-val" id="settings-latency">12ms</div>
+                <div class="metric-status mt-2" id="settings-latency-status"><span class="dot-green"></span> EXCELLENT
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- RIGHT COLUMN -->
+          <div class="settings-col-right" style="display:flex;flex-direction:column;gap:20px;">
+
+            <!-- Notification Settings -->
+            <div class="card p-24">
+              <h3>Notification Settings</h3>
+
+              <div class="setting-block mt-4">
+                <div class="setting-info">
+                  <h4>Email alerts toggle</h4>
+                  <p>Send automated summaries and critical failure warnings.</p>
+                </div>
+                <label class="switch"><input type="checkbox" id="settings-email-toggle" checked><span
+                    class="slider"></span></label>
+              </div>
+
+              <div class="setting-block-vertical mt-4">
+                <label>PRIMARY NOTIFICATION EMAIL</label>
+                <input type="email" id="settings-email-input" value="security-ops@fraudguard.int"
+                  placeholder="Enter email address" />
+              </div>
+
+              <div class="setting-block-vertical mt-4">
+                <div class="flex-between">
+                  <div>
+                    <label class="text-dark">Risk threshold slider</label>
+                    <p class="text-sm text-muted">Define the sensitivity for real-time fraud detection triggers.</p>
+                  </div>
+                  <div class="badge-dark" id="settings-risk-badge">85%</div>
+                </div>
+                <input type="range" class="range-slider mt-2" min="0" max="100" value="85" id="settings-risk-slider" />
+                <div class="slider-labels">
+                  <span>Conservative</span>
+                  <span>Institutional Standard</span>
+                  <span>Aggressive</span>
+                </div>
+              </div>
+
+              <div class="warning-box mt-4" id="settings-override-warning" style="display:none;">
+                <div class="warning-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z">
+                    </path>
+                    <line x1="12" y1="9" x2="12" y2="13"></line>
+                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                  </svg></div>
+                <div class="warning-text">
+                  <strong>Manual Override Enabled</strong>
+                  <p>Thresholds above 90% require secondary authentication from the Chief Security Officer.</p>
+                </div>
+              </div>
+
+              <div class="settings-footer mt-auto pt-4">
+                <button class="btn btn-outline" id="settings-reset-btn">Reset to Default</button>
+                <button class="btn btn-navy" id="settings-save-btn">Save Settings</button>
+              </div>
+            </div>
+
+            <!-- Security & Access -->
+            <div class="card p-24">
+              <h3>Security &amp; Access</h3>
+
+              <div class="setting-block-vertical mt-4">
+                <label>DISPLAY NAME</label>
+                <input type="text" id="settings-display-name" value="Chief Analyst" placeholder="Your display name" />
+              </div>
+
+              <div class="setting-block-vertical mt-4">
+                <label>ROLE / ACCESS LEVEL</label>
+                <input type="text" value="Tier-3 Investigator" disabled
+                  style="opacity:0.55;cursor:not-allowed;background:#f8fafc;" />
+              </div>
+
+              <div class="setting-block mt-4">
+                <div class="setting-info">
+                  <h4>Two-Factor Authentication</h4>
+                  <p>Require OTP verification for all admin-level operations.</p>
+                </div>
+                <label class="switch"><input type="checkbox" id="settings-2fa-toggle"><span
+                    class="slider"></span></label>
+              </div>
+
+              <div class="setting-block mt-4"
+                style="border-top:1px solid var(--border);padding-top:16px;margin-top:4px;">
+                <div class="setting-info">
+                  <h4>Session Timeout</h4>
+                  <p>Automatically log out after a period of inactivity.</p>
+                </div>
+                <select id="settings-session-timeout"
+                  style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:.85rem;color:var(--text-primary);background:#fff;outline:none;cursor:pointer;">
+                  <option value="15">15 minutes</option>
+                  <option value="30" selected>30 minutes</option>
+                  <option value="60">1 hour</option>
+                  <option value="240">4 hours</option>
+                </select>
+              </div>
+
+              <div class="settings-footer pt-4" style="margin-top:16px;">
+                <button class="btn btn-outline" id="settings-change-pw-btn" onclick="openChangePasswordModal()">Change
+                  Password</button>
+                <button class="btn btn-navy" id="settings-profile-save-btn">Save Profile</button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW: TRANSACTIONS -->
+    <div id="view-transactions" class="view hidden">
+      <div class="content">
+
+        <!-- Page Header -->
+        <div class="page-header">
+          <div class="page-title">
+            <h1>Transaction Register</h1>
+            <p>Complete audit trail — search, filter, and investigate all institutional transactions in real time.</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-outline" id="txn-export-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              EXPORT CSV
+            </button>
+            <button class="btn btn-navy" id="txn-refresh-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.92-10.26l5.58 5.69" />
+              </svg>
+              REFRESH
+            </button>
+          </div>
+        </div>
+
+        <!-- Search & Filter Controls Bar -->
+        <div class="card"
+          style="display:flex;align-items:center;gap:16px;padding:14px 20px;margin-bottom:20px;flex-wrap:wrap;">
+          <div
+            style="flex:1;min-width:260px;display:flex;align-items:center;gap:10px;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 14px;transition:border-color .2s;"
+            id="txn-search-wrap">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input type="text" id="txn-search-input" placeholder="Search by ID, merchant, user, location, category…"
+              autocomplete="off"
+              style="border:none;background:transparent;outline:none;font-family:inherit;font-size:.9rem;color:var(--text-primary);width:100%;" />
+            <button id="txn-search-clear" title="Clear"
+              style="display:none;background:none;border:none;cursor:pointer;padding:0;color:#94a3b8;line-height:1;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <label style="font-size:.72rem;font-weight:700;color:#64748b;letter-spacing:.5px;white-space:nowrap;"
+              for="txn-fraud-filter">STATUS</label>
+            <select id="txn-fraud-filter"
+              style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:.85rem;color:var(--text-primary);background:#fff;outline:none;cursor:pointer;">
+              <option value="">All Transactions</option>
+              <option value="true">Fraud Only</option>
+              <option value="false">Legit Only</option>
+            </select>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <label style="font-size:.72rem;font-weight:700;color:#64748b;letter-spacing:.5px;"
+              for="txn-per-page">ROWS</label>
+            <select id="txn-per-page"
+              style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:.85rem;color:var(--text-primary);background:#fff;outline:none;cursor:pointer;">
+              <option value="15">15</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+          <span id="txn-search-status" style="font-size:.8rem;color:#64748b;font-style:italic;"></span>
+        </div>
+
+        <!-- Transactions Table -->
+        <section class="table-section card">
+          <div class="card-header table-header">
+            <h3 class="card-title">All Transactions</h3>
+            <span id="txn-count-label" style="font-size:.82rem;color:var(--text-muted);font-weight:500;"></span>
+          </div>
+          <div class="table-wrap">
+            <table id="txn-full-table">
+              <thead>
+                <tr>
+                  <th>TRANSACTION ID</th>
+                  <th>USER ID</th>
+                  <th>AMOUNT</th>
+                  <th>MERCHANT</th>
+                  <th>CATEGORY</th>
+                  <th>LOCATION</th>
+                  <th>TIMESTAMP</th>
+                  <th>STATUS</th>
+                  <th>ACTION</th>
+                </tr>
+              </thead>
+              <tbody id="txn-view-tbody">
+                <tr>
+                  <td colspan="9" style="text-align:center;padding:40px;color:var(--text-muted);">Loading transactions…
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="pagination" id="txn-view-pagination" style="display:none;">
+            <span id="txn-view-pag-info"></span>
+            <div id="txn-view-pag-btns"></div>
+          </div>
+        </section>
+
+      </div>
+    </div>
+
+    <!-- VIEW: ANALYTICS -->
+    <div id="view-analytics" class="view hidden">
+      <div class="content">
+
+        <div class="page-header">
+          <div class="page-title">
+            <h1>Analytics & Intelligence</h1>
+            <p>Real-time threat assessment and institutional patterns.</p>
+          </div>
+          <div class="page-actions">
+            <!-- Analytics Time-Range Picker -->
+            <div class="trp-wrap" id="analytics-trp-wrap">
+              <button class="btn btn-outline trp-trigger" id="analytics-trp-trigger" aria-haspopup="true"
+                aria-expanded="false">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="4" width="18" height="18" rx="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" />
+                  <line x1="8" y1="2" x2="8" y2="6" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
+                <span id="analytics-trp-label">LAST 30 DAYS</span>
+                <svg class="trp-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  stroke-width="2">
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+              <div class="trp-dropdown" id="analytics-trp-dropdown">
+                <div class="trp-section-title">QUICK RANGES</div>
+                <div class="trp-presets">
+                  <button class="trp-preset" data-days="1">Last 24 hours</button>
+                  <button class="trp-preset" data-days="3">Last 3 days</button>
+                  <button class="trp-preset" data-days="7">Last week</button>
+                  <button class="trp-preset trp-active" data-days="30">Last month</button>
+                  <button class="trp-preset" data-days="90">Last 3 months</button>
+                  <button class="trp-preset" data-all="1">All time</button>
+                </div>
+              </div>
+            </div>
+            <button class="btn btn-navy" id="analytics-export-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              Export Report
+            </button>
+          </div>
+        </div>
+
+        <!-- KPI Cards Row -->
+        <section class="kpi-grid mb-4" style="grid-template-columns: repeat(4, 1fr);">
+          <div class="kpi-card" style="display: flex; flex-direction: column;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+              <div style="background: #eff6ff; padding: 8px; border-radius: 8px; color: #1e3a8a;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+              </div>
+              <div class="kpi-trend success" style="font-size: 0.8rem; font-weight: 600;">+2.4% vs prev</div>
+            </div>
+            <div class="kpi-label" style="font-size: 0.75rem; letter-spacing: 0.5px;">PEAK FRAUD HOUR</div>
+            <div class="kpi-value" id="analytics-peak-hour" style="font-size: 1.5rem; margin-top: 4px;">--:--</div>
+            <div style="height: 4px; width: 50%; background: #1e3a8a; border-radius: 2px; margin-top: 12px;"></div>
+          </div>
+
+          <div class="kpi-card" style="display: flex; flex-direction: column;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+              <div style="background: #fff7ed; padding: 8px; border-radius: 8px; color: #ea580c;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="9" cy="21" r="1"></circle>
+                  <circle cx="20" cy="21" r="1"></circle>
+                  <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                </svg>
+              </div>
+              <div class="kpi-trend" style="font-size: 0.8rem; font-weight: 600; color: #ea580c;">High Risk</div>
+            </div>
+            <div class="kpi-label" style="font-size: 0.75rem; letter-spacing: 0.5px;">MOST RISKY CATEGORY</div>
+            <div class="kpi-value" id="analytics-top-category"
+              style="font-size: 1.5rem; margin-top: 4px; color: #1e3a8a;">—</div>
+            <div
+              style="margin-top: 12px; font-size: 0.8rem; color: #64748b; display: flex; align-items: center; gap: 8px;">
+              <span
+                style="background: #fee2e2; color: #ef4444; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: 600;">URGENT</span>
+              <span id="analytics-top-category-pct">--%</span> of total volume
+            </div>
+          </div>
+
+          <div class="kpi-card" style="display: flex; flex-direction: column;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+              <div style="background: #f1f5f9; padding: 8px; border-radius: 8px; color: #475569;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="2" y="6" width="20" height="12" rx="2"></rect>
+                  <circle cx="12" cy="12" r="2"></circle>
+                </svg>
+              </div>
+              <div class="kpi-trend" style="font-size: 0.8rem; font-weight: 600; color: #10b981;">-12.5%</div>
+            </div>
+            <div class="kpi-label" style="font-size: 0.75rem; letter-spacing: 0.5px;">AVG FRAUD AMOUNT</div>
+            <div class="kpi-value" id="analytics-avg-fraud" style="font-size: 1.5rem; margin-top: 4px; color: #1e3a8a;">
+              $0.00</div>
+            <div style="margin-top: 12px; font-size: 0.8rem; color: #64748b;">
+              Lower value, higher frequency
+            </div>
+          </div>
+
+          <div class="kpi-card" style="display: flex; flex-direction: column;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+              <div style="background: #1e3a8a; padding: 8px; border-radius: 8px; color: #fff;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                </svg>
+              </div>
+              <div class="kpi-trend" style="font-size: 0.8rem; font-weight: 600; color: #ea580c;">Optimal</div>
+            </div>
+            <div class="kpi-label" style="font-size: 0.75rem; letter-spacing: 0.5px;">DETECTION ACCURACY</div>
+            <div class="kpi-value" id="analytics-accuracy" style="font-size: 1.5rem; margin-top: 4px; color: #1e3a8a;">
+              99.82%</div>
+            <div class="kpi-bar-wrap" style="margin-top: 12px; background: #e2e8f0; height: 4px; border-radius: 2px;">
+              <div class="kpi-bar-fill" style="width: 99.82%; background: #ea580c; height: 100%; border-radius: 2px;">
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Main Chart: Daily Fraud Incidents -->
+        <section class="card mb-4">
+          <div class="card-header" style="border-bottom: none; padding-bottom: 0;">
+            <div>
+              <h3 class="card-title" style="font-size: 1.1rem;">Daily Fraud Incidents</h3>
+              <p style="color: #64748b; font-size: 0.85rem; margin-top: 4px;">Comparative analysis of identified
+                fraudulent activities over time.</p>
+            </div>
+            <div class="chart-legend">
+              <span class="legend-item"><span class="dot bg-navy"></span> Current Period</span>
+              <span class="legend-item"><span class="dot" style="background:#e2e8f0"></span> Previous</span>
+            </div>
+          </div>
+          <div class="card-body" style="padding-top: 10px;">
+            <div class="chart-wrap" style="height: 300px;">
+              <canvas id="analyticsDailyChart"></canvas>
+            </div>
+          </div>
+        </section>
+
+        <!-- Bottom Row: Category & Hourly Charts -->
+        <section class="charts-row">
+          <div class="card flex-1">
+            <div class="card-header" style="border-bottom: none;">
+              <h3 class="card-title" style="font-size: 1.1rem;">Fraud by Category</h3>
+            </div>
+            <div class="card-body"
+              style="position: relative; min-height: 250px; display: flex; align-items: center; justify-content: center;">
+              <div style="position: relative; width: 100%; height: 220px;">
+                <canvas id="analyticsCategoryChart"></canvas>
+                <div id="analytics-donut-center"
+                  style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; pointer-events: none; padding-right: 120px;">
+                  <div style="font-size: 1.25rem; font-weight: 700; color: #0f172a;" id="analytics-total-fraud-donut">0
+                  </div>
+                  <div style="font-size: 0.75rem; color: #64748b;">Total</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card flex-1">
+            <div class="card-header" style="border-bottom: none;">
+              <h3 class="card-title" style="font-size: 1.1rem;">Hourly Transaction Volume</h3>
+            </div>
+            <div class="card-body">
+              <div class="chart-wrap" style="height: 220px;">
+                <canvas id="analyticsHourlyChart"></canvas>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ── Notification overlay (click-outside) ── -->
+  <div id="notif-overlay" class="notif-overlay"></div>
+
+  <!-- ── Notification slide-in panel ── -->
+  <aside id="notif-panel" class="notif-panel" role="complementary" aria-label="Notifications">
+    <div class="notif-panel-header">
+      <div class="notif-header-left">
+        <h3>Notifications</h3>
+        <span class="notif-count-badge" id="notif-count">0</span>
+      </div>
+      <div class="notif-header-right">
+        <button class="notif-mark-read" onclick="markAllRead()">Mark All Read</button>
+        <button class="notif-close-btn" onclick="closeNotificationPanel()" aria-label="Close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div class="notif-list" id="notif-list">
+      <div class="notif-loading">Loading alerts…</div>
+    </div>
+  </aside>
+
+  <!-- Toast -->
+  <div id="toast" role="alert" aria-live="polite"></div>
+
+  <!-- Auth: populate topbar + dropdown user info from stored JWT data -->
+  <script>
+    (function populateUserInfo() {
+      var user = window.FG_USER;
+      if (!user) return;
+      var initials = (user.name || 'JD').split(' ').map(function (p) { return p[0]; }).join('').slice(0, 2).toUpperCase();
+      // Topbar
+      var nameEl = document.getElementById('topbar-user-name');
+      var roleEl = document.getElementById('topbar-user-role');
+      var avatarEl = document.getElementById('topbar-user-avatar');
+      if (nameEl) nameEl.textContent = user.name || 'Chief Analyst';
+      if (roleEl) roleEl.textContent = user.role || 'Tier-3 Investigator';
+      if (avatarEl) avatarEl.textContent = initials;
+      // Dropdown
+      var pdAvatar = document.getElementById('pd-avatar');
+      var pdName = document.getElementById('pd-name');
+      var pdEmail = document.getElementById('pd-email');
+      if (pdAvatar) pdAvatar.textContent = initials;
+      if (pdName) pdName.textContent = user.name || 'Chief Analyst';
+      if (pdEmail) pdEmail.textContent = user.email || 'admin@fraudguard.com';
+    })();
+  </script>
+
+  <!-- Modals -->
+  <div class="modal-overlay" id="modal-overlay">
+
+    <!-- Reports modal -->
+    <div class="modal" id="reports-modal">
+      <div class="modal-header">
+        <h2>📄 Export Reports</h2>
+        <button class="close-btn" id="close-reports">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="color:#64748b;margin-bottom:5px;font-size:.85rem;">Select format to export your transaction history
+          and fraud intelligence data.</p>
+        <div class="report-options" style="display:flex;gap:10px;">
+          <button class="btn btn-outline"
+            onclick="showToast('Exporting PDF...','info');setTimeout(()=>{showToast('PDF Report Downloaded','success');document.getElementById('modal-overlay').classList.remove('active');},1500);">Export
+            as PDF</button>
+          <button class="btn btn-outline"
+            onclick="showToast('Exporting CSV...','info');setTimeout(()=>{showToast('CSV Data Downloaded','success');document.getElementById('modal-overlay').classList.remove('active');},1500);">Export
+            as CSV</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Profile modal -->
+    <div class="modal profile-modal-wide" id="profile-modal">
+      <div class="modal-header">
+        <h2>My Profile</h2>
+        <button class="close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="prof-modal-top">
+          <div class="prof-modal-avatar" id="prof-modal-initials">JD</div>
+          <div class="prof-modal-identity">
+            <div class="prof-modal-name" id="prof-modal-name">Chief Analyst</div>
+            <div class="prof-modal-email" id="prof-modal-email">admin@fraudguard.com</div>
+            <span class="prof-modal-role-badge" id="prof-modal-role">Administrator</span>
+          </div>
+        </div>
+        <div class="prof-modal-grid">
+          <div class="prof-detail-row">
+            <span class="prof-detail-label">Department</span>
+            <span class="prof-detail-value">Security Operations Center</span>
+          </div>
+          <div class="prof-detail-row">
+            <span class="prof-detail-label">Last Login</span>
+            <span class="prof-detail-value" id="prof-modal-login">N/A</span>
+          </div>
+          <div class="prof-detail-row">
+            <span class="prof-detail-label">Access Level</span>
+            <span class="prof-detail-value" style="color:#1E3A5F;font-weight:600;">Full Admin</span>
+          </div>
+        </div>
+        <div class="prof-permissions">
+          <div class="prof-perm-title">Permissions</div>
+          <div class="prof-perm-list">
+            <span class="prof-perm-item">✅ View All Transactions</span>
+            <span class="prof-perm-item">✅ Manage Alerts</span>
+            <span class="prof-perm-item">✅ Export Reports</span>
+            <span class="prof-perm-item">✅ System Settings</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Change Password modal -->
+    <div class="modal" id="change-pw-modal">
+      <div class="modal-header">
+        <h2>🔐 Change Password</h2>
+        <button class="close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <div>
+            <label
+              style="display:block;font-size:.75rem;font-weight:600;color:#64748b;margin-bottom:6px;letter-spacing:.5px;">CURRENT
+              PASSWORD</label>
+            <input type="password" id="cpw-current" placeholder="••••••••"
+              style="width:100%;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:.9rem;outline:none;" />
+          </div>
+          <div>
+            <label
+              style="display:block;font-size:.75rem;font-weight:600;color:#64748b;margin-bottom:6px;letter-spacing:.5px;">NEW
+              PASSWORD</label>
+            <input type="password" id="cpw-new" placeholder="••••••••"
+              style="width:100%;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:.9rem;outline:none;" />
+          </div>
+          <div>
+            <label
+              style="display:block;font-size:.75rem;font-weight:600;color:#64748b;margin-bottom:6px;letter-spacing:.5px;">CONFIRM
+              NEW PASSWORD</label>
+            <input type="password" id="cpw-confirm" placeholder="••••••••"
+              style="width:100%;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:.9rem;outline:none;" />
+          </div>
+          <button class="btn btn-navy" style="margin-top:4px;" onclick="submitChangePassword()" id="cpw-submit">Update
+            Password</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- My Activity modal -->
+    <div class="modal profile-modal-wide" id="activity-modal">
+      <div class="modal-header">
+        <h2>📊 My Activity</h2>
+        <button class="close-btn">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 20px;">
+        <div id="activity-list"
+          style="display:flex; flex-direction:column; gap:12px; max-height: 400px; overflow-y: auto;">
+          <div style="text-align:center;color:var(--text-muted);padding:20px;">Loading activity...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Support modal -->
+    <div class="modal" id="support-modal">
+      <div class="modal-header">
+        <h2>📞 Help & Support</h2>
+        <button class="close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <p style="color:#475569;font-size:0.9rem;line-height:1.5;">Our support team is available 24/7 to assist you
+            with system issues, fraud analysis, and technical questions.</p>
+
+          <div style="background:#f8fafc;padding:12px;border:1px solid #e2e8f0;border-radius:8px;">
+            <h4 style="margin:0 0 6px 0;font-size:0.85rem;color:#0f172a;">Contact Methods</h4>
+            <div style="font-size:0.85rem;color:#475569;display:flex;flex-direction:column;gap:6px;">
+              <div style="display:flex;align-items:center;gap:6px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                  <polyline points="22,6 12,13 2,6"></polyline>
+                </svg>
+                <span>support@fraudguard.com</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path
+                    d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z">
+                  </path>
+                </svg>
+                <span>+1 (800) 555-0198</span>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label
+              style="display:block;font-size:.75rem;font-weight:600;color:#64748b;margin-bottom:6px;letter-spacing:.5px;">SEND
+              A MESSAGE</label>
+            <textarea rows="4" placeholder="Describe your issue..."
+              style="width:100%;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:.9rem;outline:none;resize:vertical;"></textarea>
+          </div>
+          <button class="btn btn-navy" style="margin-top:4px;"
+            onclick="showToast('Support ticket submitted successfully. We will contact you soon.','success');document.getElementById('modal-overlay').classList.remove('active');">Submit
+            Ticket</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- System Audit Modal -->
+    <div class="modal profile-modal-wide" id="system-audit-modal">
+      <div class="modal-header">
+        <h2>&#x1F50D; System Audit Log</h2>
+        <button class="close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <p style="color:#475569;font-size:.9rem;">Real-time system events and security audit trail across all modules.
+          </p>
+          <div id="audit-log-list"
+            style="display:flex;flex-direction:column;gap:10px;max-height:420px;overflow-y:auto;">
+            <div style="text-align:center;padding:30px;color:var(--text-muted);">Loading audit logs&hellip;</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+  </div>
+
+  <script>
+    function openSupportModal() {
+      const overlay = document.getElementById('modal-overlay');
+      const modal = document.getElementById('support-modal');
+      if (overlay && modal) {
+        document.querySelectorAll('.modal').forEach(m => m.classList.remove('active'));
+        overlay.classList.add('active');
+        modal.classList.add('active');
+      }
+    }
+
+    function openChangePasswordModal() {
+      const overlay = document.getElementById('modal-overlay');
+      const modal = document.getElementById('change-pw-modal');
+      if (overlay && modal) {
+        // Clear inputs
+        document.getElementById('cpw-current').value = '';
+        document.getElementById('cpw-new').value = '';
+        document.getElementById('cpw-confirm').value = '';
+
+        document.querySelectorAll('.modal').forEach(m => m.classList.remove('active'));
+        overlay.classList.add('active');
+        modal.classList.add('active');
+      }
+    }
+  </script>
+
+</body>
+
+</html>
