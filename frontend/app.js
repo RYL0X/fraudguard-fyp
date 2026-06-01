@@ -9,12 +9,12 @@ const API = 'http://localhost:5000';
    STATE
 ══════════════════════════════════════════════════════════════ */
 const state = {
-  page:        1,
-  perPage:     15,
-  totalPages:  1,
-  search:      '',
+  page: 1,
+  perPage: 15,
+  totalPages: 1,
+  search: '',
   fraudFilter: '',
-  loading:     false,
+  loading: false,
   // Active time-range filter: { from_dt, to_dt, label }
   // null = no filter (all time / backend default)
   trpFilter: { from_dt: null, to_dt: null, label: 'LAST 24 HOURS' },
@@ -24,23 +24,23 @@ const state = {
    TRANSACTIONS VIEW STATE (separate from dashboard state)
 ══════════════════════════════════════════════════════════════ */
 const txnViewState = {
-  page:        1,
-  perPage:     15,
-  totalPages:  1,
-  search:      '',
+  page: 1,
+  perPage: 15,
+  totalPages: 1,
+  search: '',
   fraudFilter: '',
-  loading:     false,
+  loading: false,
   initialized: false,
 };
 
 // Initialise default 24-hour window on page load
 (function initDefaultRange() {
-  const now  = new Date();
+  const now = new Date();
   const from = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   state.trpFilter = {
     from_dt: from.toISOString().slice(0, 19),  // YYYY-MM-DDTHH:MM:SS
-    to_dt:   now.toISOString().slice(0, 19),
-    label:   'LAST 24 HOURS',
+    to_dt: now.toISOString().slice(0, 19),
+    label: 'LAST 24 HOURS',
   };
 })();
 
@@ -62,7 +62,7 @@ function fmtDate(s) {
   if (!s) return '—';
   const d = new Date(s);
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-       + ' ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    + ' ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 }
 function truncate(s, n = 10) {
   return s && s.length > n ? s.slice(0, n) + '…' : s;
@@ -74,7 +74,7 @@ function showToast(msg, type = 'info') {
   let tClass = 'show';
   if (type === 'error') tClass += ' error';
   if (type === 'success') tClass += ' success';
-  t.className   = tClass;
+  t.className = tClass;
   clearTimeout(t._tid);
   t._tid = setTimeout(() => { t.className = ''; }, 3500);
 }
@@ -95,9 +95,10 @@ async function apiFetch(path) {
   }
 }
 
-async function checkAPIHealth() {
+async function checkApiHealth() {
   try {
-    await fetch(API + '/api/stats/summary');
+    await fetch(API + '/api/health');
+
     // Success: hide banner, show green dot
     document.getElementById('api-error-banner').style.display = 'none';
     const statusDot = document.getElementById('api-status');
@@ -116,12 +117,12 @@ async function checkAPIHealth() {
    KPI CARDS
 ══════════════════════════════════════════════════════════════ */
 function animateValue(el, target, decimals = 0, prefix = '') {
-  const start    = 0;
+  const start = 0;
   const duration = 900;
-  const step     = 16;
-  const steps    = duration / step;
-  let   current  = start;
-  const inc      = target / steps;
+  const step = 16;
+  const steps = duration / step;
+  let current = start;
+  const inc = target / steps;
 
   const timer = setInterval(() => {
     current = Math.min(current + inc, target);
@@ -135,10 +136,10 @@ async function loadKPIs() {
     const d = await apiFetch('/api/stats/summary');
 
     const cards = [
-      { id: 'kpi-total',  val: d.total_transactions, dec: 0, pre: '' },
-      { id: 'kpi-fraud',  val: d.fraud_count,        dec: 0, pre: '' },
-      { id: 'kpi-rate',   val: d.fraud_rate_pct,     dec: 1, pre: '' },
-      { id: 'kpi-amount', val: d.avg_amount,          dec: 2, pre: '$' },
+      { id: 'kpi-total', val: d.total_transactions, dec: 0, pre: '' },
+      { id: 'kpi-fraud', val: d.fraud_count, dec: 0, pre: '' },
+      { id: 'kpi-rate', val: d.fraud_rate_pct, dec: 1, pre: '' },
+      { id: 'kpi-amount', val: d.avg_amount, dec: 2, pre: '$' },
     ];
 
     cards.forEach(({ id, val, dec, pre }) => {
@@ -173,7 +174,7 @@ async function loadTrendChart() {
 
   try {
     const rows = await apiFetch('/api/stats/trend');
-    
+
     if (!rows || rows.length === 0) {
       if (wrap) wrap.innerHTML = '<div style="text-align:center;padding:60px 20px;color:var(--text-muted);font-weight:500;">No trend data available</div>';
       return;
@@ -181,7 +182,7 @@ async function loadTrendChart() {
 
     if (wrap) wrap.innerHTML = '<canvas id="trendChart"></canvas>';
     const ctx = document.getElementById('trendChart').getContext('2d');
-    
+
     const labels = rows.map(r => {
       const d = new Date(r.date);
       return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -195,26 +196,26 @@ async function loadTrendChart() {
         labels,
         datasets: [
           {
-            label:           'Legit',
-            data:            rows.map(r => r.legit),
-            borderColor:     '#3b82f6',
+            label: 'Legit',
+            data: rows.map(r => r.legit),
+            borderColor: '#3b82f6',
             backgroundColor: 'rgba(59, 130, 246, 0.1)',
-            borderWidth:     2,
-            tension:         0.4,
-            fill:            true,
-            pointRadius:     0,
-            pointHoverRadius:4,
+            borderWidth: 2,
+            tension: 0.4,
+            fill: true,
+            pointRadius: 0,
+            pointHoverRadius: 4,
           },
           {
-            label:           'Fraud',
-            data:            rows.map(r => r.fraud),
-            borderColor:     '#ef4444',
+            label: 'Fraud',
+            data: rows.map(r => r.fraud),
+            borderColor: '#ef4444',
             backgroundColor: 'rgba(239, 68, 68, 0.1)',
-            borderWidth:     2,
-            tension:         0.4,
-            fill:            true,
-            pointRadius:     0,
-            pointHoverRadius:4,
+            borderWidth: 2,
+            tension: 0.4,
+            fill: true,
+            pointRadius: 0,
+            pointHoverRadius: 4,
           }
         ],
       },
@@ -226,22 +227,22 @@ async function loadTrendChart() {
           legend: { display: false },
           tooltip: {
             backgroundColor: '#ffffff',
-            borderColor:     '#e2e8f0',
-            borderWidth:     1,
-            titleColor:      '#0f172a',
-            bodyColor:       '#475569',
-            padding:         10,
-            boxPadding:      6,
+            borderColor: '#e2e8f0',
+            borderWidth: 1,
+            titleColor: '#0f172a',
+            bodyColor: '#475569',
+            padding: 10,
+            boxPadding: 6,
           },
         },
         scales: {
           x: {
-            ticks:   { color: '#64748b', font: { family: 'Inter', size: 11 }, maxTicksLimit: 8 },
-            grid:    { display: false },
+            ticks: { color: '#64748b', font: { family: 'Inter', size: 11 }, maxTicksLimit: 8 },
+            grid: { display: false },
           },
           y: {
-            ticks:   { color: '#64748b', font: { family: 'Inter', size: 11 } },
-            grid:    { color: '#f1f5f9', drawBorder: false },
+            ticks: { color: '#64748b', font: { family: 'Inter', size: 11 } },
+            grid: { color: '#f1f5f9', drawBorder: false },
             beginAtZero: true,
           },
         },
@@ -253,13 +254,13 @@ async function loadTrendChart() {
 }
 
 async function loadDonutChart() {
-  const listEl  = document.getElementById('catList');
+  const listEl = document.getElementById('catList');
   if (!listEl) return;
   listEl.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--text-muted);font-weight:500;">Loading threats...</div>';
 
   try {
     const cats = await apiFetch('/api/stats/categories');
-    
+
     if (!cats || cats.length === 0) {
       listEl.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--text-muted);font-weight:500;">No threat data</div>';
       return;
@@ -272,7 +273,7 @@ async function loadDonutChart() {
       let colorHex = '#10b981'; // green
       if (c.fraud > 100) { colorHex = '#ef4444'; } // red
       else if (c.fraud > 50) { colorHex = '#f59e0b'; } // orange
-      
+
       const width = Math.max(5, (c.fraud / maxFraud) * 100);
 
       return `
@@ -304,10 +305,10 @@ async function loadTable() {
 
   try {
     const paramsObj = {
-      page:     state.page,
+      page: state.page,
       per_page: state.perPage,
-      ...(state.search      && { search: state.search }),
-      ...(state.fraudFilter && { fraud:  state.fraudFilter }),
+      ...(state.search && { search: state.search }),
+      ...(state.fraudFilter && { fraud: state.fraudFilter }),
     };
 
     if (state.trpFilter && state.trpFilter.label === 'LAST 2 HOURS') {
@@ -318,7 +319,7 @@ async function loadTable() {
     const params = new URLSearchParams(paramsObj);
 
     let data = await apiFetch(`/api/transactions/?${params}`);
-    
+
     // Client-side filter for LAST 2 HOURS
     if (state.trpFilter && state.trpFilter.label === 'LAST 2 HOURS') {
       const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
@@ -347,8 +348,8 @@ async function loadTable() {
           <td>${fmtDate(t.timestamp)}</td>
           <td>
             ${t.is_fraud
-              ? `<span class="badge badge-fraud">⚠ Fraud</span>`
-              : `<span class="badge badge-legit">✓ Legit</span>`}
+          ? `<span class="badge badge-fraud">⚠ Fraud</span>`
+          : `<span class="badge badge-legit">✓ Legit</span>`}
           </td>
         </tr>`).join('');
     }
@@ -366,8 +367,8 @@ function renderPagination(total, page, pages) {
     `${total.toLocaleString()} transactions  ·  Page ${page} of ${pages}`;
 
   const container = document.getElementById('pag-btns');
-  const range     = [];
-  const delta     = 2;
+  const range = [];
+  const delta = 2;
   for (let i = Math.max(1, page - delta); i <= Math.min(pages, page + delta); i++) range.push(i);
 
   container.innerHTML = `
@@ -396,24 +397,24 @@ function renderPagination(total, page, pages) {
 async function runPrediction() {
   const btn = document.getElementById('predict-btn');
   btn.textContent = '⏳ Analysing…';
-  btn.disabled    = true;
+  btn.disabled = true;
 
   const payload = {
-    amount:      parseFloat(document.getElementById('p-amount').value),
-    hour:        parseInt(document.getElementById('p-hour').value, 10),
+    amount: parseFloat(document.getElementById('p-amount').value),
+    hour: parseInt(document.getElementById('p-hour').value, 10),
     day_of_week: parseInt(document.getElementById('p-dow').value, 10),
-    is_foreign:  document.getElementById('p-foreign').checked ? 1 : 0,
-    category:    document.getElementById('p-category').value,
+    is_foreign: document.getElementById('p-foreign').checked ? 1 : 0,
+    category: document.getElementById('p-category').value,
   };
 
   try {
     const r = await fetch(`${API}/api/transactions/predict`, {
-      method:  'POST',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(payload),
+      body: JSON.stringify(payload),
     });
     const result = await r.json();
-    
+
     // Add artificial delay to provide clear visual feedback that an analysis is happening
     await new Promise(resolve => setTimeout(resolve, 600));
 
@@ -424,27 +425,27 @@ async function runPrediction() {
     showToast(e.message, 'error');
   } finally {
     btn.innerHTML = '🔍 Analyse Transaction';
-    btn.disabled  = false;
+    btn.disabled = false;
   }
 }
 
 function showResult(result) {
-  const box      = document.getElementById('predict-result');
-  const verdict  = document.getElementById('result-verdict'); // hidden
-  const riskBadge= document.getElementById('result-risk');
+  const box = document.getElementById('predict-result');
+  const verdict = document.getElementById('result-verdict'); // hidden
+  const riskBadge = document.getElementById('result-risk');
   const confScoreVal = document.getElementById('conf-score-val');
   const riskPct = document.getElementById('result-risk-pct');
   const riskCircle = document.getElementById('result-risk-circle');
 
   // Verdict classes
-  verdict.textContent  = result.is_fraud ? '⚠ FRAUD DETECTED' : '✓ LEGITIMATE';
-  
+  verdict.textContent = result.is_fraud ? '⚠ FRAUD DETECTED' : '✓ LEGITIMATE';
+
   const pct = (result.confidence * 100).toFixed(1);
   const scoreInt = Math.round(result.confidence * 100);
-  
+
   confScoreVal.textContent = result.confidence.toFixed(3);
   riskPct.textContent = scoreInt + '%';
-  
+
   if (result.is_fraud) {
     riskBadge.className = 'verdict-badge fraud';
     riskBadge.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg> FRAUD DETECTED';
@@ -470,13 +471,13 @@ function onSearch(e) {
   clearTimeout(searchTimer);
   searchTimer = setTimeout(() => {
     state.search = e.target.value.trim();
-    state.page   = 1;
+    state.page = 1;
     loadTable();
   }, 380);
 }
 function onFraudFilter(e) {
   state.fraudFilter = e.target.value;
-  state.page        = 1;
+  state.page = 1;
   loadTable();
 }
 
@@ -484,19 +485,19 @@ function onFraudFilter(e) {
    TIME-RANGE PICKER LOGIC
 ══════════════════════════════════════════════════════════════ */
 function initTRP() {
-  const trigger  = document.getElementById('trp-trigger');
+  const trigger = document.getElementById('trp-trigger');
   const dropdown = document.getElementById('trp-dropdown');
-  const label    = document.getElementById('trp-label');
+  const label = document.getElementById('trp-label');
   const applyBtn = document.getElementById('trp-apply');
-  const fromInp  = document.getElementById('trp-from');
-  const toInp    = document.getElementById('trp-to');
+  const fromInp = document.getElementById('trp-from');
+  const toInp = document.getElementById('trp-to');
 
   if (!trigger || !dropdown) return;
 
   // Sync initial state (Last 24 Hours) to the inputs just so they aren't empty
   if (state.trpFilter.from_dt) {
-    fromInp.value = state.trpFilter.from_dt.slice(0,16); // format for datetime-local
-    toInp.value   = state.trpFilter.to_dt.slice(0,16);
+    fromInp.value = state.trpFilter.from_dt.slice(0, 16); // format for datetime-local
+    toInp.value = state.trpFilter.to_dt.slice(0, 16);
   }
 
   // Toggle Dropdown
@@ -532,22 +533,22 @@ function initTRP() {
       const now = new Date();
       let fromDate;
       const hours = btn.getAttribute('data-hours');
-      const days  = btn.getAttribute('data-days');
-      const all   = btn.getAttribute('data-all');
+      const days = btn.getAttribute('data-days');
+      const all = btn.getAttribute('data-all');
 
       if (all) {
         state.trpFilter = { from_dt: null, to_dt: null, label: 'ALL TIME' };
       } else {
         if (hours) fromDate = new Date(now.getTime() - parseInt(hours) * 60 * 60 * 1000);
-        if (days)  fromDate = new Date(now.getTime() - parseInt(days) * 24 * 60 * 60 * 1000);
+        if (days) fromDate = new Date(now.getTime() - parseInt(days) * 24 * 60 * 60 * 1000);
         state.trpFilter = {
           from_dt: fromDate.toISOString().slice(0, 19),
-          to_dt:   now.toISOString().slice(0, 19),
-          label:   btn.textContent.toUpperCase()
+          to_dt: now.toISOString().slice(0, 19),
+          label: btn.textContent.toUpperCase()
         };
         // update inputs
-        fromInp.value = state.trpFilter.from_dt.slice(0,16);
-        toInp.value   = state.trpFilter.to_dt.slice(0,16);
+        fromInp.value = state.trpFilter.from_dt.slice(0, 16);
+        toInp.value = state.trpFilter.to_dt.slice(0, 16);
       }
 
       applyFilter(state.trpFilter.label);
@@ -561,8 +562,8 @@ function initTRP() {
       return;
     }
     const fromDate = new Date(fromInp.value);
-    const toDate   = new Date(toInp.value);
-    
+    const toDate = new Date(toInp.value);
+
     if (fromDate > toDate) {
       showToast('From date cannot be after To date', 'error');
       return;
@@ -573,8 +574,8 @@ function initTRP() {
 
     state.trpFilter = {
       from_dt: fromDate.toISOString().slice(0, 19),
-      to_dt:   toDate.toISOString().slice(0, 19),
-      label:   'CUSTOM RANGE'
+      to_dt: toDate.toISOString().slice(0, 19),
+      label: 'CUSTOM RANGE'
     };
     applyFilter(state.trpFilter.label);
   });
@@ -620,10 +621,10 @@ async function loadTransactionsView() {
 
   try {
     const paramsObj = {
-      page:     txnViewState.page,
+      page: txnViewState.page,
       per_page: txnViewState.perPage,
-      ...(txnViewState.search      && { search: txnViewState.search }),
-      ...(txnViewState.fraudFilter && { fraud:  txnViewState.fraudFilter }),
+      ...(txnViewState.search && { search: txnViewState.search }),
+      ...(txnViewState.fraudFilter && { fraud: txnViewState.fraudFilter }),
     };
     const data = await apiFetch(`/api/transactions/?${new URLSearchParams(paramsObj)}`);
     txnViewState.totalPages = data.pages;
@@ -680,13 +681,13 @@ async function loadTransactionsView() {
 }
 
 function renderTxnViewPagination(total, page, pages) {
-  const pagDiv    = document.getElementById('txn-view-pagination');
-  const infoEl    = document.getElementById('txn-view-pag-info');
+  const pagDiv = document.getElementById('txn-view-pagination');
+  const infoEl = document.getElementById('txn-view-pag-info');
   const container = document.getElementById('txn-view-pag-btns');
   if (!pagDiv || !infoEl || !container) return;
   pagDiv.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-top:1px solid var(--border);flex-wrap:wrap;gap:10px;';
   infoEl.style.cssText = 'font-size:.82rem;color:var(--text-muted);font-weight:500;';
-  infoEl.textContent   = `${total.toLocaleString()} transactions · Page ${page} of ${pages}`;
+  infoEl.textContent = `${total.toLocaleString()} transactions · Page ${page} of ${pages}`;
   container.style.cssText = 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;';
   const delta = 2, range = [];
   for (let i = Math.max(1, page - delta); i <= Math.min(pages, page + delta); i++) range.push(i);
@@ -767,25 +768,25 @@ async function exportTransactionsCSV() {
   try {
     const params = new URLSearchParams({
       page: 1, per_page: 5000,
-      ...(txnViewState.search      && { search: txnViewState.search }),
-      ...(txnViewState.fraudFilter && { fraud:  txnViewState.fraudFilter }),
+      ...(txnViewState.search && { search: txnViewState.search }),
+      ...(txnViewState.fraudFilter && { fraud: txnViewState.fraudFilter }),
     });
     const data = await apiFetch(`/api/transactions/?${params}`);
     if (!data.data.length) { showToast('No data to export', 'error'); return; }
-    const headers = ['ID','User ID','Amount','Merchant','Category','Location','Timestamp','Is Fraud'];
+    const headers = ['ID', 'User ID', 'Amount', 'Merchant', 'Category', 'Location', 'Timestamp', 'Is Fraud'];
     const csv = [
       headers.join(','),
       ...data.data.map(r => [
         r.id, r.user_id, r.amount,
-        `"${(r.merchant || '').replace(/"/g,'""')}"`,
-        `"${(r.category || '').replace(/"/g,'""')}"`,
-        `"${(r.location || '').replace(/"/g,'""')}"`,
+        `"${(r.merchant || '').replace(/"/g, '""')}"`,
+        `"${(r.category || '').replace(/"/g, '""')}"`,
+        `"${(r.location || '').replace(/"/g, '""')}"`,
         r.timestamp, r.is_fraud ? 1 : 0,
       ].join(','))
     ].join('\n');
     const a = document.createElement('a');
     a.style.display = 'none';
-    a.href     = 'data:text/csv;charset=utf-8,\uFEFF' + encodeURIComponent(csv);
+    a.href = 'data:text/csv;charset=utf-8,\uFEFF' + encodeURIComponent(csv);
     a.download = `transactions_${new Date().toISOString().slice(0, 10)}.csv`;
     document.body.appendChild(a);
     a.click();
@@ -798,15 +799,15 @@ async function exportTransactionsCSV() {
    ALERTS VIEW — State, Data, Rendering, Pagination, Export
 ══════════════════════════════════════════════════════════════ */
 const alertsViewState = {
-  activeTab:   'all',   // 'all' | 'new' | 'reviewed' | 'resolved'
-  riskFilter:  '',
-  typeFilter:  '',
-  search:      '',
-  page:        1,
-  perPage:     10,
-  totalPages:  1,
-  allAlerts:   [],
-  filtered:    [],
+  activeTab: 'all',   // 'all' | 'new' | 'reviewed' | 'resolved'
+  riskFilter: '',
+  typeFilter: '',
+  search: '',
+  page: 1,
+  perPage: 10,
+  totalPages: 1,
+  allAlerts: [],
+  filtered: [],
   initialized: false,
 };
 
@@ -831,24 +832,24 @@ const MERCHANTS = [
 ];
 
 function generateSampleAlerts() {
-  const statuses = ['new','new','new','reviewed','reviewed','resolved'];
-  const types    = ['fraud','fraud','suspicious'];
-  const alerts   = [];
+  const statuses = ['new', 'new', 'new', 'reviewed', 'reviewed', 'resolved'];
+  const types = ['fraud', 'fraud', 'suspicious'];
+  const alerts = [];
   for (let i = 0; i < 124; i++) {
-    const type      = types[i % types.length];
+    const type = types[i % types.length];
     const riskScore = type === 'fraud'
       ? 80 + Math.floor(Math.random() * 19)
       : 40 + Math.floor(Math.random() * 39);
     const date = new Date(2023, 9, 24 - Math.floor(i / 10), 14 - (i % 8), (i * 7) % 60, (i * 13) % 60);
     alerts.push({
-      id:             `TXN-${(98421 - i).toString().padStart(5,'0')}-${String.fromCharCode(65+(i%26))}${String.fromCharCode(65+((i+5)%26))}`,
-      amount:         parseFloat((1000 + Math.random() * 50000).toFixed(2)),
-      merchant:       MERCHANTS[i % MERCHANTS.length],
-      timestamp:      date.toISOString(),
+      id: `TXN-${(98421 - i).toString().padStart(5, '0')}-${String.fromCharCode(65 + (i % 26))}${String.fromCharCode(65 + ((i + 5) % 26))}`,
+      amount: parseFloat((1000 + Math.random() * 50000).toFixed(2)),
+      merchant: MERCHANTS[i % MERCHANTS.length],
+      timestamp: date.toISOString(),
       riskScore,
-      riskLevel:      riskScore >= 90 ? 'CRITICAL' : riskScore >= 60 ? 'ELEVATED' : 'LOW',
+      riskLevel: riskScore >= 90 ? 'CRITICAL' : riskScore >= 60 ? 'ELEVATED' : 'LOW',
       type,
-      status:         statuses[i % statuses.length],
+      status: statuses[i % statuses.length],
       detectionLogic: DETECTION_PHRASES[i % DETECTION_PHRASES.length],
     });
   }
@@ -864,21 +865,21 @@ async function loadAlertsView() {
     const data = await apiFetch('/api/transactions/?per_page=200&page=1&fraud=true');
     const txns = data.data || [];
     if (txns.length > 0) {
-      const statuses = ['new','new','new','reviewed','reviewed','resolved'];
+      const statuses = ['new', 'new', 'new', 'reviewed', 'reviewed', 'resolved'];
       alertsViewState.allAlerts = txns.map((t, i) => {
-        const isFraud   = !!t.is_fraud;
+        const isFraud = !!t.is_fraud;
         const riskScore = isFraud
           ? 80 + Math.floor(Math.random() * 19)
           : 40 + Math.floor(Math.random() * 39);
         return {
-          id:             t.id,
-          amount:         t.amount,
-          merchant:       t.merchant || '—',
-          timestamp:      t.timestamp,
+          id: t.id,
+          amount: t.amount,
+          merchant: t.merchant || '—',
+          timestamp: t.timestamp,
           riskScore,
-          riskLevel:      riskScore >= 90 ? 'CRITICAL' : riskScore >= 60 ? 'ELEVATED' : 'LOW',
-          type:           isFraud ? 'fraud' : 'suspicious',
-          status:         statuses[i % statuses.length],
+          riskLevel: riskScore >= 90 ? 'CRITICAL' : riskScore >= 60 ? 'ELEVATED' : 'LOW',
+          type: isFraud ? 'fraud' : 'suspicious',
+          status: statuses[i % statuses.length],
           detectionLogic: DETECTION_PHRASES[i % DETECTION_PHRASES.length],
         };
       });
@@ -905,15 +906,15 @@ function applyAlertsFilters() {
 
   if (alertsViewState.search) {
     const s = alertsViewState.search.toLowerCase();
-    list = list.filter(a => 
-      a.id.toLowerCase().includes(s) || 
-      a.merchant.toLowerCase().includes(s) || 
+    list = list.filter(a =>
+      a.id.toLowerCase().includes(s) ||
+      a.merchant.toLowerCase().includes(s) ||
       a.detectionLogic.toLowerCase().includes(s)
     );
   }
 
-  alertsViewState.filtered    = list;
-  alertsViewState.totalPages  = Math.max(1, Math.ceil(list.length / alertsViewState.perPage));
+  alertsViewState.filtered = list;
+  alertsViewState.totalPages = Math.max(1, Math.ceil(list.length / alertsViewState.perPage));
   if (alertsViewState.page > alertsViewState.totalPages) alertsViewState.page = 1;
 
   renderAlertsPage();
@@ -937,27 +938,27 @@ function renderAlertsPage() {
   }
 
   listEl.innerHTML = items.map(a => {
-    const isFraud  = a.type === 'fraud';
+    const isFraud = a.type === 'fraud';
     const isResolved = a.status === 'resolved';
     const borderCls = isResolved ? 'resolved-border' : isFraud ? 'fraud-border' : 'suspicious-border';
     const statusCls = isResolved ? 'resolved' : isFraud ? 'fraud' : 'suspicious';
-    const iconBg    = isFraud ? '#fef2f2' : isResolved ? '#f0fdf4' : '#fff7ed';
+    const iconBg = isFraud ? '#fef2f2' : isResolved ? '#f0fdf4' : '#fff7ed';
     const iconColor = isFraud ? '#dc2626' : isResolved ? '#16a34a' : '#ea580c';
-    const label     = isResolved ? 'RESOLVED' : isFraud ? 'FRAUD' : 'SUSPICIOUS';
-    const icon      = isFraud
+    const label = isResolved ? 'RESOLVED' : isFraud ? 'FRAUD' : 'SUSPICIOUS';
+    const icon = isFraud
       ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`
       : isResolved
-      ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>`
-      : `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
+        ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>`
+        : `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
 
-    const riskCls   = a.riskScore >= 90 ? 'red' : a.riskScore >= 60 ? 'orange' : 'green';
-    
+    const riskCls = a.riskScore >= 90 ? 'red' : a.riskScore >= 60 ? 'orange' : 'green';
+
     // Format date properly like: Oct 24, 2023 • 14:22:10 GMT
     const d = new Date(a.timestamp);
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const timeStr = `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()} &bull; ${d.toLocaleTimeString('en-GB')} GMT`;
-    
-    const amtStr    = fmtMoney(a.amount);
+
+    const amtStr = fmtMoney(a.amount);
 
     return `
     <div class="alert-card ${borderCls} animate-in">
@@ -1004,8 +1005,8 @@ function renderAlertsPage() {
 }
 
 function renderAlertsViewPagination() {
-  const pagDiv    = document.getElementById('alerts-pagination');
-  const infoEl    = document.getElementById('alerts-pag-info');
+  const pagDiv = document.getElementById('alerts-pagination');
+  const infoEl = document.getElementById('alerts-pag-info');
   const container = document.getElementById('alerts-pag-btns');
   if (!pagDiv || !infoEl || !container) return;
 
@@ -1014,21 +1015,21 @@ function renderAlertsViewPagination() {
 
   pagDiv.style.display = 'block';
   const start = (page - 1) * perPage + 1;
-  const end   = Math.min(page * perPage, filtered.length);
+  const end = Math.min(page * perPage, filtered.length);
   infoEl.textContent = `Showing ${start}–${end} of ${filtered.length} alerts`;
 
   const delta = 2, range = [];
   for (let i = Math.max(1, page - delta); i <= Math.min(totalPages, page + delta); i++) range.push(i);
 
   const navStyle = (disabled) =>
-    `style="padding:7px 18px;background:${disabled?'#e2e8f0':'#1E3A5F'};color:${disabled?'#94a3b8':'#fff'};border:none;border-radius:6px;font-family:inherit;font-size:.82rem;font-weight:600;cursor:${disabled?'not-allowed':'pointer'};letter-spacing:.4px;"`;
+    `style="padding:7px 18px;background:${disabled ? '#e2e8f0' : '#1E3A5F'};color:${disabled ? '#94a3b8' : '#fff'};border:none;border-radius:6px;font-family:inherit;font-size:.82rem;font-weight:600;cursor:${disabled ? 'not-allowed' : 'pointer'};letter-spacing:.4px;"`;
   const pageStyle = (active) =>
-    `style="min-width:34px;padding:7px 10px;background:${active?'#1E3A5F':'#fff'};color:${active?'#fff':'#334155'};border:1.5px solid ${active?'#1E3A5F':'#e2e8f0'};border-radius:6px;font-family:inherit;font-size:.82rem;font-weight:${active?'700':'500'};cursor:${active?'default':'pointer'};"`;
+    `style="min-width:34px;padding:7px 10px;background:${active ? '#1E3A5F' : '#fff'};color:${active ? '#fff' : '#334155'};border:1.5px solid ${active ? '#1E3A5F' : '#e2e8f0'};border-radius:6px;font-family:inherit;font-size:.82rem;font-weight:${active ? '700' : '500'};cursor:${active ? 'default' : 'pointer'};"`;
 
   container.innerHTML = `
-    <button id="alrt-pag-prev" ${page<=1?'disabled':''} ${navStyle(page<=1)}>Prev</button>
-    ${range.map(p => `<button data-page="${p}" ${pageStyle(p===page)}>${p}</button>`).join('')}
-    <button id="alrt-pag-next" ${page>=totalPages?'disabled':''} ${navStyle(page>=totalPages)}>Next</button>`;
+    <button id="alrt-pag-prev" ${page <= 1 ? 'disabled' : ''} ${navStyle(page <= 1)}>Prev</button>
+    ${range.map(p => `<button data-page="${p}" ${pageStyle(p === page)}>${p}</button>`).join('')}
+    <button id="alrt-pag-next" ${page >= totalPages ? 'disabled' : ''} ${navStyle(page >= totalPages)}>Next</button>`;
 
   container.querySelectorAll('[data-page]').forEach(btn => {
     btn.addEventListener('click', () => { alertsViewState.page = +btn.dataset.page; renderAlertsPage(); renderAlertsViewPagination(); });
@@ -1045,19 +1046,19 @@ function exportAlertsCSV() {
   const list = alertsViewState.filtered;
   if (!list.length) { showToast('No alerts to export', 'error'); return; }
   showToast('Preparing export…', 'info');
-  const headers = ['Transaction ID','Amount','Merchant','Timestamp','Risk Score','Risk Level','Type','Status','Detection Logic'];
+  const headers = ['Transaction ID', 'Amount', 'Merchant', 'Timestamp', 'Risk Score', 'Risk Level', 'Type', 'Status', 'Detection Logic'];
   const csv = [
     headers.join(','),
     ...list.map(a => [
       `"${a.id}"`, a.amount,
-      `"${(a.merchant||'').replace(/"/g,'""')}"`,
+      `"${(a.merchant || '').replace(/"/g, '""')}"`,
       a.timestamp, a.riskScore, a.riskLevel, a.type, a.status,
-      `"${(a.detectionLogic||'').replace(/"/g,'""')}"`,
+      `"${(a.detectionLogic || '').replace(/"/g, '""')}"`,
     ].join(','))
   ].join('\n');
   const a = document.createElement('a');
   a.style.display = 'none';
-  a.href     = 'data:text/csv;charset=utf-8,\uFEFF' + encodeURIComponent(csv);
+  a.href = 'data:text/csv;charset=utf-8,\uFEFF' + encodeURIComponent(csv);
   a.download = `alerts_report_${new Date().toISOString().slice(0, 10)}.csv`;
   document.body.appendChild(a);
   a.click();
@@ -1078,7 +1079,7 @@ function openAlertReviewModal(btn) {
   const riskCls = alert.riskScore >= 90 ? 'red' : alert.riskScore >= 60 ? 'orange' : 'green';
   modal.innerHTML = `
     <div class="modal-header">
-      <h2>🔍 Alert Review — #${alert.id.substring(0,14).toUpperCase()}</h2>
+      <h2>🔍 Alert Review — #${alert.id.substring(0, 14).toUpperCase()}</h2>
       <button class="close-btn">&times;</button>
     </div>
     <div class="modal-body">
@@ -1129,7 +1130,7 @@ function resolveAlert(id) {
 
 function openSystemAuditModal() {
   const overlay = document.getElementById('modal-overlay');
-  const modal   = document.getElementById('system-audit-modal');
+  const modal = document.getElementById('system-audit-modal');
   if (!overlay || !modal) return;
   document.querySelectorAll('.modal').forEach(m => m.classList.remove('active'));
   overlay.classList.add('active');
@@ -1148,7 +1149,7 @@ function openSystemAuditModal() {
     { time: '2023-10-24 09:30:10', action: 'Model Retrained', detail: 'ML model retrained on 10,000 new labeled samples — Accuracy 99.82%', level: 'success' },
     { time: '2023-10-24 08:00:00', action: 'System Startup', detail: 'FraudGuard API v2.4.1 started successfully', level: 'success' },
   ];
-  const colors = { danger:'#ef4444', warning:'#f59e0b', info:'#3b82f6', success:'#10b981' };
+  const colors = { danger: '#ef4444', warning: '#f59e0b', info: '#3b82f6', success: '#10b981' };
   list.innerHTML = entries.map(e => `
     <div style="display:flex;gap:14px;padding:12px;background:#f8fafc;border:1px solid var(--border);border-radius:8px;border-left:3px solid ${colors[e.level]};">
       <div style="flex:1;min-width:0;">
@@ -1189,16 +1190,16 @@ function initAlertsView() {
 
   /* Risk/type filters */
   const riskSel = document.getElementById('alert-risk-filter');
-  if (riskSel) riskSel.addEventListener('change', e => { alertsViewState.riskFilter = e.target.value; alertsViewState.page=1; applyAlertsFilters(); });
+  if (riskSel) riskSel.addEventListener('change', e => { alertsViewState.riskFilter = e.target.value; alertsViewState.page = 1; applyAlertsFilters(); });
 
   const typeSel = document.getElementById('alert-type-filter');
-  if (typeSel) typeSel.addEventListener('change', e => { alertsViewState.typeFilter = e.target.value; alertsViewState.page=1; applyAlertsFilters(); });
+  if (typeSel) typeSel.addEventListener('change', e => { alertsViewState.typeFilter = e.target.value; alertsViewState.page = 1; applyAlertsFilters(); });
 
   /* Alerts page search bar */
   let alertsSearchTimer = null;
   const alertSearchInput = document.getElementById('alerts-search-input');
   const alertSearchClear = document.getElementById('alerts-search-clear');
-  const alertSearchWrap  = document.getElementById('alerts-search-wrap');
+  const alertSearchWrap = document.getElementById('alerts-search-wrap');
 
   if (alertSearchInput) {
     alertSearchInput.addEventListener('focus', () => {
@@ -1213,7 +1214,7 @@ function initAlertsView() {
       if (alertSearchClear) alertSearchClear.style.display = val ? 'flex' : 'none';
       alertsSearchTimer = setTimeout(() => {
         alertsViewState.search = val;
-        alertsViewState.page   = 1;
+        alertsViewState.page = 1;
         applyAlertsFilters();
       }, 300);
     });
@@ -1224,7 +1225,7 @@ function initAlertsView() {
       if (alertSearchInput) { alertSearchInput.value = ''; alertSearchInput.focus(); }
       alertSearchClear.style.display = 'none';
       alertsViewState.search = '';
-      alertsViewState.page   = 1;
+      alertsViewState.page = 1;
       applyAlertsFilters();
     });
   }
@@ -1238,8 +1239,8 @@ function initAlertsView() {
     if (alertSearchClear) alertSearchClear.style.display = 'none';
     alertsViewState.riskFilter = '';
     alertsViewState.typeFilter = '';
-    alertsViewState.search     = '';
-    alertsViewState.page       = 1;
+    alertsViewState.search = '';
+    alertsViewState.page = 1;
     applyAlertsFilters();
     showToast('Filters cleared', 'info');
   });
@@ -1267,7 +1268,7 @@ function initTransactionsView() {
 
   let txnSearchTimer = null;
   const searchInput = document.getElementById('txn-search-input');
-  const clearBtn    = document.getElementById('txn-search-clear');
+  const clearBtn = document.getElementById('txn-search-clear');
 
   if (searchInput) {
     searchInput.addEventListener('input', e => {
@@ -1276,7 +1277,7 @@ function initTransactionsView() {
       if (clearBtn) clearBtn.style.display = val ? 'block' : 'none';
       txnSearchTimer = setTimeout(() => {
         txnViewState.search = val;
-        txnViewState.page   = 1;
+        txnViewState.page = 1;
         loadTransactionsView();
       }, 380);
     });
@@ -1333,8 +1334,8 @@ async function loadAnalyticsView() {
   try {
     const params = new URLSearchParams();
     if (analyticsViewState.trpFilter.from_dt) params.append('from_dt', analyticsViewState.trpFilter.from_dt);
-    if (analyticsViewState.trpFilter.to_dt)   params.append('to_dt', analyticsViewState.trpFilter.to_dt);
-    if (analyticsViewState.search)            params.append('search', analyticsViewState.search);
+    if (analyticsViewState.trpFilter.to_dt) params.append('to_dt', analyticsViewState.trpFilter.to_dt);
+    if (analyticsViewState.search) params.append('search', analyticsViewState.search);
     const qs = params.toString() ? `?${params.toString()}` : '';
 
     const [kpis, trend, categories, hourly] = await Promise.all([
@@ -1383,18 +1384,18 @@ async function loadAnalyticsView() {
     const catCtx = document.getElementById('analyticsCategoryChart');
     if (catCtx) {
       if (analyticsViewState.charts.category) analyticsViewState.charts.category.destroy();
-      
+
       const topCats = categories.slice(0, 4);
       const otherCats = categories.slice(4);
       const otherFraud = otherCats.reduce((sum, c) => sum + c.fraud, 0);
-      
+
       const dataLabels = topCats.map(c => c.category);
       const dataValues = topCats.map(c => c.fraud);
       if (otherFraud > 0) {
         dataLabels.push('Other');
         dataValues.push(otherFraud);
       }
-      
+
       const totalFraud = dataValues.reduce((a, b) => a + b, 0);
       document.getElementById('analytics-total-fraud-donut').textContent = totalFraud.toLocaleString();
 
@@ -1443,7 +1444,7 @@ async function loadAnalyticsView() {
           plugins: { legend: { display: false } },
           scales: {
             y: { display: false, beginAtZero: true },
-            x: { 
+            x: {
               grid: { display: false },
               ticks: { maxTicksLimit: 5 }
             }
@@ -1490,10 +1491,10 @@ function initAnalyticsView() {
       btn.addEventListener('click', () => {
         presets.forEach(b => b.classList.remove('trp-active'));
         btn.classList.add('trp-active');
-        
+
         const days = btn.dataset.days;
         const all = btn.dataset.all;
-        
+
         if (all) {
           analyticsViewState.trpFilter.from_dt = null;
           analyticsViewState.trpFilter.to_dt = null;
@@ -1504,13 +1505,13 @@ function initAnalyticsView() {
           analyticsViewState.trpFilter.from_dt = fromDate.toISOString();
           analyticsViewState.trpFilter.to_dt = toDate.toISOString();
         }
-        
+
         analyticsViewState.trpFilter.label = btn.textContent.toUpperCase();
         if (label) label.textContent = analyticsViewState.trpFilter.label;
-        
+
         trigger.setAttribute('aria-expanded', 'false');
         dropdown.classList.remove('open');
-        
+
         loadAnalyticsView();
       });
     });
@@ -1532,27 +1533,27 @@ function initAnalyticsView() {
       try {
         const params = new URLSearchParams();
         if (analyticsViewState.trpFilter.from_dt) params.append('from_dt', analyticsViewState.trpFilter.from_dt);
-        if (analyticsViewState.trpFilter.to_dt)   params.append('to_dt', analyticsViewState.trpFilter.to_dt);
+        if (analyticsViewState.trpFilter.to_dt) params.append('to_dt', analyticsViewState.trpFilter.to_dt);
         const qs = params.toString() ? `?${params.toString()}` : '';
-        
+
         const data = await apiFetch(`/api/transactions/${qs ? qs + '&page=1&per_page=10000' : '?page=1&per_page=10000'}`);
         if (!data.data || !data.data.length) { showToast('No data to export', 'error'); return; }
-        
-        const headers = ['ID','User ID','Amount','Merchant','Category','Location','Timestamp','Is Fraud'];
+
+        const headers = ['ID', 'User ID', 'Amount', 'Merchant', 'Category', 'Location', 'Timestamp', 'Is Fraud'];
         const csv = [
           headers.join(','),
           ...data.data.map(r => [
             r.id, r.user_id, r.amount,
-            `"${(r.merchant || '').replace(/"/g,'""')}"`,
-            `"${(r.category || '').replace(/"/g,'""')}"`,
-            `"${(r.location || '').replace(/"/g,'""')}"`,
+            `"${(r.merchant || '').replace(/"/g, '""')}"`,
+            `"${(r.category || '').replace(/"/g, '""')}"`,
+            `"${(r.location || '').replace(/"/g, '""')}"`,
             r.timestamp, r.is_fraud ? 1 : 0,
           ].join(','))
         ].join('\n');
-        
+
         const a = document.createElement('a');
         a.style.display = 'none';
-        a.href     = 'data:text/csv;charset=utf-8,\uFEFF' + encodeURIComponent(csv);
+        a.href = 'data:text/csv;charset=utf-8,\uFEFF' + encodeURIComponent(csv);
         a.download = `analytics_report_${new Date().toISOString().slice(0, 10)}.csv`;
         document.body.appendChild(a);
         a.click();
@@ -1569,7 +1570,7 @@ function initAnalyticsView() {
    NOTIFICATION PANEL
 ══════════════════════════════════════════════════════════════ */
 function openNotificationPanel() {
-  const panel   = document.getElementById('notif-panel');
+  const panel = document.getElementById('notif-panel');
   const overlay = document.getElementById('notif-overlay');
   if (!panel) return;
   panel.classList.add('open');
@@ -1578,7 +1579,7 @@ function openNotificationPanel() {
 }
 
 function closeNotificationPanel() {
-  const panel   = document.getElementById('notif-panel');
+  const panel = document.getElementById('notif-panel');
   const overlay = document.getElementById('notif-overlay');
   if (!panel) return;
   panel.classList.remove('open');
@@ -1609,9 +1610,9 @@ async function loadNotifications() {
 
     document.getElementById('notif-count').textContent = txns.length;
     list.innerHTML = txns.map(t => {
-      const isFraud  = t.is_fraud;
-      const border   = isFraud ? '#ef4444' : '#f59e0b';
-      const label    = isFraud ? 'FRAUD' : 'SUSPICIOUS';
+      const isFraud = t.is_fraud;
+      const border = isFraud ? '#ef4444' : '#f59e0b';
+      const label = isFraud ? 'FRAUD' : 'SUSPICIOUS';
       const labelClr = isFraud ? '#ef4444' : '#f59e0b';
       return `
         <div class="notif-card" style="border-left:3px solid ${border}">
@@ -1660,10 +1661,10 @@ function openProfileModal() {
   const initials = (user.name || 'JD').split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase();
   const lastLogin = user.last_login || 'N/A';
   document.getElementById('prof-modal-initials').textContent = initials;
-  document.getElementById('prof-modal-name').textContent     = user.name  || 'Chief Analyst';
-  document.getElementById('prof-modal-email').textContent    = user.email || 'admin@fraudguard.com';
-  document.getElementById('prof-modal-role').textContent     = user.role  || 'Administrator';
-  document.getElementById('prof-modal-login').textContent    = lastLogin;
+  document.getElementById('prof-modal-name').textContent = user.name || 'Chief Analyst';
+  document.getElementById('prof-modal-email').textContent = user.email || 'admin@fraudguard.com';
+  document.getElementById('prof-modal-role').textContent = user.role || 'Administrator';
+  document.getElementById('prof-modal-login').textContent = lastLogin;
   const overlay = document.getElementById('modal-overlay');
   if (overlay) {
     document.querySelectorAll('.modal').forEach(m => m.classList.remove('active'));
@@ -1686,33 +1687,33 @@ function openChangePasswordModal() {
 
 async function showActivityPanel() {
   closeAllDropdowns();
-  
+
   const overlay = document.getElementById('modal-overlay');
   const modal = document.getElementById('activity-modal');
-  
+
   if (!overlay || !modal) return;
-  
+
   // Close any other open modals
   document.querySelectorAll('.modal').forEach(m => m.classList.remove('active'));
   overlay.classList.add('active');
   modal.classList.add('active');
-  
+
   const listEl = document.getElementById('activity-list');
   listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);">Loading activity logs...</div>';
-  
+
   try {
     const r = await fetch(API + '/api/auth/activity', {
       headers: { 'Authorization': 'Bearer ' + window.FG_TOKEN }
     });
-    
+
     if (!r.ok) throw new Error('Failed to load activity');
     const logs = await r.json();
-    
+
     if (!logs || logs.length === 0) {
       listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);">No activity logs found.</div>';
       return;
     }
-    
+
     listEl.innerHTML = logs.map(log => `
       <div style="padding:12px;border:1px solid var(--border);border-radius:8px;background:#f8fafc;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
@@ -1722,7 +1723,7 @@ async function showActivityPanel() {
         <div style="font-size:0.85rem;color:#475569;">${log.details || ''}</div>
       </div>
     `).join('');
-    
+
   } catch (err) {
     listEl.innerHTML = `<div style="text-align:center;padding:20px;color:var(--danger);">${err.message}</div>`;
   }
@@ -1755,7 +1756,7 @@ async function submitChangePassword() {
       },
       body: JSON.stringify({ current_password: currentPw, new_password: newPw })
     });
-    
+
     const result = await r.json();
     if (!r.ok) throw new Error(result.error || 'Failed to update password');
 
@@ -1778,8 +1779,8 @@ function initSettingsView() {
 
   // ── Risk threshold slider ──
   const slider = document.getElementById('settings-risk-slider');
-  const badge  = document.getElementById('settings-risk-badge');
-  const warn   = document.getElementById('settings-override-warning');
+  const badge = document.getElementById('settings-risk-badge');
+  const warn = document.getElementById('settings-override-warning');
   if (slider && badge) {
     const updateSlider = () => {
       const v = parseInt(slider.value, 10);
@@ -1812,12 +1813,12 @@ function initSettingsView() {
   const resetBtn = document.getElementById('settings-reset-btn');
   if (resetBtn) {
     resetBtn.addEventListener('click', () => {
-      const emailInput  = document.getElementById('settings-email-input');
+      const emailInput = document.getElementById('settings-email-input');
       const emailToggle = document.getElementById('settings-email-toggle');
-      if (emailInput)  emailInput.value  = 'security-ops@fraudguard.int';
+      if (emailInput) emailInput.value = 'security-ops@fraudguard.int';
       if (emailToggle) emailToggle.checked = true;
       if (slider) { slider.value = 85; badge.textContent = '85%'; }
-      if (warn)   warn.style.display = 'none';
+      if (warn) warn.style.display = 'none';
       showToast('Settings reset to defaults', 'info');
     });
   }
@@ -1983,7 +1984,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const alertsSearchClearEl = document.getElementById('alerts-search-clear');
         if (alertsSearchClearEl) alertsSearchClearEl.style.display = 'none';
         alertsViewState.search = '';
-        alertsViewState.page   = 1;
+        alertsViewState.page = 1;
         initAlertsView();
         loadAlertsView();
       } else if (item.id === 'nav-settings') {
@@ -2029,10 +2030,10 @@ document.addEventListener('DOMContentLoaded', () => {
       document.querySelectorAll('.view').forEach(v => { v.classList.remove('active'); v.classList.add('hidden'); });
       document.getElementById('view-predict').classList.remove('hidden');
       document.getElementById('view-predict').classList.add('active');
-      
+
       const topbarSearch = document.querySelector('.topbar-search');
       if (topbarSearch) topbarSearch.style.visibility = 'visible';
-      
+
       setTimeout(() => document.getElementById('p-amount').focus(), 100);
     });
   }
@@ -2076,7 +2077,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (document.getElementById('view-transactions').classList.contains('active')) {
           loadTransactionsView();
         }
-        
+
         // Alerts
         alertsViewState.search = val;
         alertsViewState.page = 1;
@@ -2089,7 +2090,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Initial load — manual only, no auto-refresh
   initTRP();
-  
+
   // Check API Health first, then load dashboard if successful
   checkAPIHealth().then(isOnline => {
     if (isOnline) refreshAll();
