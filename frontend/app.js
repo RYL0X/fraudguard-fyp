@@ -3,7 +3,7 @@
    API base: http://localhost:5000
    ────────────────────────────────────────────────────────────── */
 
-const API = 'http://localhost:5000';
+const API = window.location.origin;
 
 /* ══════════════════════════════════════════════════════════════
    STATE
