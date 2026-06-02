@@ -86,7 +86,9 @@ async function apiFetch(path) {
       const sep = path.includes('?') ? '&' : '?';
       path += `${sep}from_dt=${encodeURIComponent(state.trpFilter.from_dt)}&to_dt=${encodeURIComponent(state.trpFilter.to_dt)}`;
     }
-    const r = await fetch(API + path);
+    // cache:'no-store' prevents the browser from serving a stale cached
+    // response (which would omit the date-range params) on a soft Ctrl+R reload.
+    const r = await fetch(API + path, { cache: 'no-store' });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return await r.json();
   } catch (err) {
@@ -2088,11 +2090,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Initial load — manual only, no auto-refresh
+  // Ensure default 24-hour range is applied before any dashboard API call
   initTRP();
 
-  // Check API Health first, then load dashboard if successful
-  checkAPIHealth().then(isOnline => {
+  // Check API health first, then load dashboard with the 24-hour filter active
+  // NOTE: must match the exact function name defined above (checkApiHealth, not checkAPIHealth)
+  checkApiHealth().then(isOnline => {
     if (isOnline) refreshAll();
   });
 });

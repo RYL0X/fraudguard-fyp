@@ -4,7 +4,7 @@
             "password": "admin123",
             "name": "Chief Analyst",
             "role": "Administrator",
-            "last_login": "2026-06-01 08:09 UTC",
+            "last_login": "2026-06-02 22:41 UTC",
             "permissions": [
                 "read",
                 "write",
@@ -14,6 +14,12 @@
         }
     },
     "ACTIVITY_LOGS": [
+        {
+            "timestamp": "2026-06-02 22:41 UTC",
+            "user": "admin@fraudguard.com",
+            "action": "Login",
+            "details": "User authenticated successfully."
+        },
         {
             "timestamp": "2026-06-01 08:09 UTC",
             "user": "admin@fraudguard.com",
