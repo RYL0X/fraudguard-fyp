@@ -50,17 +50,35 @@ def summary():
         SELECT
             COUNT(*)                          AS total_transactions,
             SUM(is_fraud)                     AS fraud_count,
-            ROUND(AVG(is_fraud) * 100, 2)     AS fraud_rate_pct,
             ROUND(AVG(amount), 2)             AS avg_amount,
-            ROUND(SUM(amount), 2)             AS total_volume,
-            ROUND(MAX(amount), 2)             AS max_amount
+            SUM(CASE WHEN DATE(timestamp) = CURDATE() THEN 1 ELSE 0 END) AS today_transactions,
+            SUM(CASE WHEN DATE(timestamp) = CURDATE() AND is_fraud = 1 THEN 1 ELSE 0 END) AS today_fraud
         FROM transactions
         {where}
     """, params)
     row = cursor.fetchone()
     cursor.close()
     conn.close()
-    return jsonify({k: float(v) if v is not None else 0 for k, v in row.items()})
+    
+    total_transactions = int(row['total_transactions']) if row and row['total_transactions'] is not None else 0
+    fraud_count = int(row['fraud_count']) if row and row['fraud_count'] is not None else 0
+    avg_amount = float(row['avg_amount']) if row and row['avg_amount'] is not None else 0.0
+    today_transactions = int(row['today_transactions']) if row and row['today_transactions'] is not None else 0
+    today_fraud = int(row['today_fraud']) if row and row['today_fraud'] is not None else 0
+
+    if total_transactions > 0:
+        fraud_rate = round((fraud_count / total_transactions) * 100, 2)
+    else:
+        fraud_rate = 0.0
+
+    return jsonify({
+        'total_transactions': total_transactions,
+        'fraud_count': fraud_count,
+        'fraud_rate': fraud_rate,
+        'avg_amount': avg_amount,
+        'today_transactions': today_transactions,
+        'today_fraud': today_fraud
+    })
 
 
 # ── GET /api/stats/trend ───────────────────────────────────────────────────

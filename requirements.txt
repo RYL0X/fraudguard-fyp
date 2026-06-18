@@ -10,3 +10,5 @@ pytest
 faker
 PyJWT
 pyngrok
+flask-socketio
+eventlet

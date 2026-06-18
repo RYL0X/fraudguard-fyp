@@ -11,6 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
     rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <script>
     const API_BASE = "http://localhost:5000/api";
 
@@ -423,8 +424,11 @@
               <thead>
                 <tr>
                   <th>TRANSACTION ID</th>
-                  <th>MERCHANT</th>
+                  <th>USER ID</th>
                   <th>AMOUNT</th>
+                  <th>MERCHANT</th>
+                  <th>CATEGORY</th>
+                  <th>LOCATION</th>
                   <th>TIMESTAMP</th>
                   <th>STATUS</th>
                   <th>ACTION</th>
@@ -433,7 +437,7 @@
               <tbody id="txn-tbody">
                 <!-- Dynamically populated -->
                 <tr>
-                  <td colspan="6" style="text-align:center; padding: 20px;">Loading transactions...</td>
+                  <td colspan="9" style="text-align:center; padding: 20px;">Loading transactions...</td>
                 </tr>
               </tbody>
             </table>
@@ -507,7 +511,7 @@
                 </div>
                 <div class="form-group">
                   <label>MERCHANT NAME</label>
-                  <input type="text" placeholder="e.g., GLOBAL VENTURES INC" />
+                  <input type="text" id="p-merchant" placeholder="e.g., GLOBAL VENTURES INC" />
                 </div>
               </div>
 
@@ -519,7 +523,7 @@
                       <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
                       <circle cx="12" cy="10" r="3"></circle>
                     </svg></span>
-                  <input type="text" placeholder="London, United Kingdom" />
+                  <input type="text" id="p-location" placeholder="London, United Kingdom" />
                 </div>
               </div>
 
@@ -656,6 +660,7 @@
             <button class="alert-tab" data-tab="new" id="atab-new">NEW</button>
             <button class="alert-tab" data-tab="reviewed" id="atab-reviewed">REVIEWED</button>
             <button class="alert-tab" data-tab="resolved" id="atab-resolved">RESOLVED</button>
+            <button class="alert-tab" data-tab="dismissed" id="atab-dismissed">DISMISSED</button>
           </div>
           <div class="alerts-tabs-right">
             <button class="alerts-filter-toggle" id="alerts-filter-toggle">

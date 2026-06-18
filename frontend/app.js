@@ -137,11 +137,12 @@ async function loadKPIs() {
   try {
     const d = await apiFetch('/api/stats/summary');
 
+    const rateVal = isNaN(parseFloat(d.fraud_rate)) ? 0.0 : parseFloat(d.fraud_rate);
     const cards = [
-      { id: 'kpi-total', val: d.total_transactions, dec: 0, pre: '' },
-      { id: 'kpi-fraud', val: d.fraud_count, dec: 0, pre: '' },
-      { id: 'kpi-rate', val: d.fraud_rate_pct, dec: 1, pre: '' },
-      { id: 'kpi-amount', val: d.avg_amount, dec: 2, pre: '$' },
+      { id: 'kpi-total', val: d.total_transactions || 0, dec: 0, pre: '' },
+      { id: 'kpi-fraud', val: d.fraud_count || 0, dec: 0, pre: '' },
+      { id: 'kpi-rate', val: rateVal, dec: 1, pre: '' },
+      { id: 'kpi-amount', val: d.avg_amount || 0, dec: 2, pre: '$' },
     ];
 
     cards.forEach(({ id, val, dec, pre }) => {
@@ -339,21 +340,38 @@ async function loadTable() {
         tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:28px">No transactions found.</td></tr>';
       }
     } else {
-      tbody.innerHTML = data.data.map(t => `
+      tbody.innerHTML = data.data.map(t => {
+        const isFraudStatus = (t.is_fraud === 1 || t.is_fraud === true || String(t.decision).toLowerCase() === 'fraud' || String(t.decision).toLowerCase() === 'blocked' || String(t.decision).toLowerCase() === 'declined');
+        const statusBadge = isFraudStatus
+          ? '<span class="badge badge-fraud">⚠ Fraud</span>'
+          : '<span class="badge badge-legit">✓ Legit</span>';
+
+        return `
         <tr class="animate-in">
-          <td title="${t.id}">${truncate(t.id, 8)}</td>
-          <td>${t.user_id}</td>
-          <td style="font-weight:600;color:var(--text-primary)">${fmtMoney(t.amount)}</td>
-          <td>${truncate(t.merchant, 18)}</td>
-          <td><span class="badge badge-cat">${t.category}</span></td>
-          <td>${t.location}</td>
-          <td>${fmtDate(t.timestamp)}</td>
-          <td>
-            ${t.is_fraud
-          ? `<span class="badge badge-fraud">⚠ Fraud</span>`
-          : `<span class="badge badge-legit">✓ Legit</span>`}
+          <td title="${t.id}">
+            <code style="font-size:.78rem;background:#f1f5f9;padding:2px 7px;border-radius:4px;color:var(--navy);">${truncate(t.id, 12)}</code>
           </td>
-        </tr>`).join('');
+          <td>${t.user_id || '—'}</td>
+          <td style="font-weight:600;color:var(--text-primary)">${fmtMoney(t.amount)}</td>
+          <td title="${t.merchant}">${truncate(t.merchant, 18)}</td>
+          <td><span class="badge badge-cat">${t.category || '—'}</span></td>
+          <td>${t.location || '—'}</td>
+          <td>${fmtDate(t.timestamp)}</td>
+          <td>${statusBadge}</td>
+          <td>
+            <button class="btn-text txn-detail-btn" data-idx="${data.data.indexOf(t)}"
+              style="font-size:.8rem;color:var(--navy);font-weight:600;display:flex;align-items:center;gap:4px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>View
+            </button>
+          </td>
+        </tr>`;
+      }).join('');
+
+      tbody.querySelectorAll('.txn-detail-btn').forEach(btn => {
+        btn.addEventListener('click', () => openTxnDetailModal(data.data[+btn.dataset.idx]));
+      });
     }
 
     renderPagination(data.total, data.page, data.pages);
@@ -401,12 +419,16 @@ async function runPrediction() {
   btn.textContent = '⏳ Analysing…';
   btn.disabled = true;
 
+  const dowSelect = document.getElementById('p-dow');
+  const catSelect = document.getElementById('p-category');
+
   const payload = {
-    amount: parseFloat(document.getElementById('p-amount').value),
-    hour: parseInt(document.getElementById('p-hour').value, 10),
-    day_of_week: parseInt(document.getElementById('p-dow').value, 10),
-    is_foreign: document.getElementById('p-foreign').checked ? 1 : 0,
-    category: document.getElementById('p-category').value,
+    amount: parseFloat(document.getElementById('p-amount').value) || 0,
+    hour: parseInt(document.getElementById('p-hour').value, 10) || 0,
+    day_of_week: dowSelect.options[dowSelect.selectedIndex].text,
+    category: catSelect.options[catSelect.selectedIndex].text,
+    merchant: document.getElementById('p-merchant').value,
+    location: document.getElementById('p-location').value
   };
 
   try {
@@ -423,6 +445,12 @@ async function runPrediction() {
     if (!r.ok) throw new Error(result.error || 'API error');
 
     showResult(result);
+    
+    // Refresh dashboard / transactions / alerts immediately (in addition to sockets)
+    if (typeof loadDashboardData === "function") loadDashboardData();
+    if (typeof loadTransactionsView === "function") loadTransactionsView();
+    if (typeof loadAlertsView === "function") loadAlertsView();
+    
   } catch (e) {
     showToast(e.message, 'error');
   } finally {
@@ -442,13 +470,13 @@ function showResult(result) {
   // Verdict classes
   verdict.textContent = result.is_fraud ? '⚠ FRAUD DETECTED' : '✓ LEGITIMATE';
 
-  const pct = (result.confidence * 100).toFixed(1);
-  const scoreInt = Math.round(result.confidence * 100);
+  const riskScoreNum = parseFloat(result.risk_score || 0);
+  const scoreInt = Math.round(riskScoreNum * 100);
 
-  confScoreVal.textContent = result.confidence.toFixed(3);
+  confScoreVal.textContent = parseFloat(result.confidence || 0).toFixed(3);
   riskPct.textContent = scoreInt + '%';
 
-  if (result.is_fraud) {
+  if (result.is_fraud || result.risk_level === 'HIGH') {
     riskBadge.className = 'verdict-badge fraud';
     riskBadge.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg> FRAUD DETECTED';
     riskCircle.parentElement.style.background = 'linear-gradient(135deg, #f59e0b, #dc2626)';
@@ -659,7 +687,7 @@ async function loadTransactionsView() {
           <td><span class="badge badge-cat">${t.category || '—'}</span></td>
           <td style="font-size:.85rem;color:var(--text-muted);">${t.location || '—'}</td>
           <td style="font-size:.82rem;color:var(--text-muted);">${fmtDate(t.timestamp)}</td>
-          <td>${t.is_fraud ? '<span class="badge badge-fraud">⚠ Fraud</span>' : '<span class="badge badge-legit">✓ Legit</span>'}</td>
+          <td>${(t.is_fraud === 1 || t.is_fraud === true || String(t.decision).toLowerCase() === 'fraud' || String(t.decision).toLowerCase() === 'blocked' || String(t.decision).toLowerCase() === 'declined') ? '<span class="badge badge-fraud">⚠ Fraud</span>' : '<span class="badge badge-legit">✓ Legit</span>'}</td>
           <td>
             <button class="btn-text txn-detail-btn" data-idx="${data.data.indexOf(t)}"
               style="font-size:.8rem;color:var(--navy);font-weight:600;display:flex;align-items:center;gap:4px;">
@@ -801,7 +829,7 @@ async function exportTransactionsCSV() {
    ALERTS VIEW — State, Data, Rendering, Pagination, Export
 ══════════════════════════════════════════════════════════════ */
 const alertsViewState = {
-  activeTab: 'all',   // 'all' | 'new' | 'reviewed' | 'resolved'
+  activeTab: 'all',   // 'all' | 'new' | 'reviewed' | 'resolved' | 'dismissed'
   riskFilter: '',
   typeFilter: '',
   search: '',
@@ -813,87 +841,53 @@ const alertsViewState = {
   initialized: false,
 };
 
-/* Detection logic phrases */
-const DETECTION_PHRASES = [
-  'Impossible travel velocity between login and checkout. High-risk offshore IP range.',
-  'Atypical purchase amount for this account profile. Velocity pattern mismatch.',
-  'Entity on international watch list. Transaction exceeds behavioral threshold by 400%.',
-  'Multiple failed 3DS challenges preceding approval. Device fingerprint anomaly.',
-  'Card-not-present transaction from high-risk jurisdiction. No prior travel history.',
-  'Transaction at unusual hour. Merchant category mismatch with user spending profile.',
-  'Rapid succession micro-transactions followed by large withdrawal. ATO pattern detected.',
-  'Geolocation anomaly: 3,200km from home region. New device fingerprint.',
-  'Merchant on internal blacklist. Transaction value exceeds daily limit by 310%.',
-  'Velocity check failed: 6 transactions in 4 minutes across 3 different countries.',
-];
-const MERCHANTS = [
-  'Global Tech Escrow Inc.', 'Luxury Automotive Spares', 'Crystal Crypto Exchange',
-  'Offshore Digital Services', 'Prime Holdings Ltd', 'Maritime Trade Partners',
-  'Nexus Payment Solutions', 'Continental Forex Bureau', 'Apex Securities Corp',
-  'International Escrow Group',
-];
-
-function generateSampleAlerts() {
-  const statuses = ['new', 'new', 'new', 'reviewed', 'reviewed', 'resolved'];
-  const types = ['fraud', 'fraud', 'suspicious'];
-  const alerts = [];
-  for (let i = 0; i < 124; i++) {
-    const type = types[i % types.length];
-    const riskScore = type === 'fraud'
-      ? 80 + Math.floor(Math.random() * 19)
-      : 40 + Math.floor(Math.random() * 39);
-    const date = new Date(2023, 9, 24 - Math.floor(i / 10), 14 - (i % 8), (i * 7) % 60, (i * 13) % 60);
-    alerts.push({
-      id: `TXN-${(98421 - i).toString().padStart(5, '0')}-${String.fromCharCode(65 + (i % 26))}${String.fromCharCode(65 + ((i + 5) % 26))}`,
-      amount: parseFloat((1000 + Math.random() * 50000).toFixed(2)),
-      merchant: MERCHANTS[i % MERCHANTS.length],
-      timestamp: date.toISOString(),
-      riskScore,
-      riskLevel: riskScore >= 90 ? 'CRITICAL' : riskScore >= 60 ? 'ELEVATED' : 'LOW',
-      type,
-      status: statuses[i % statuses.length],
-      detectionLogic: DETECTION_PHRASES[i % DETECTION_PHRASES.length],
-    });
+/* Alerts Data Logic */
+async function loadAlerts(status = "all") {
+  const listEl = document.getElementById('alerts-list');
+  if (listEl) {
+    listEl.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-muted);">Loading alerts&hellip;</div>';
   }
-  return alerts;
+
+  try {
+    let url = '/api/alerts';
+    if (status !== 'all') {
+      url += `?status=${status}`;
+    }
+    const data = await apiFetch(url);
+    
+    if (data && data.length > 0) {
+        alertsViewState.allAlerts = data.map(a => ({
+          id: a.id,
+          transaction_id: a.transaction_id,
+          amount: a.amount,
+          merchant: a.merchant || '—',
+          timestamp: a.timestamp,
+          riskScore: a.risk_score,
+          riskLevel: a.risk_level,
+          type: a.source || 'suspicious',
+          status: a.status === 'review' ? 'reviewed' : a.status,
+          detectionLogic: a.message || 'No additional details provided.',
+        }));
+    } else {
+        alertsViewState.allAlerts = [];
+    }
+    
+    applyAlertsFilters();
+    updateAlertTabCounts();
+  } catch (e) {
+    console.error('Failed to load alerts:', e);
+    if (listEl) {
+      listEl.innerHTML = '<div style="text-align:center;padding:60px;color:var(--danger);font-weight:500;">Unable to load alerts. Please check API connection.</div>';
+    }
+  }
 }
 
 async function loadAlertsView() {
-  const listEl = document.getElementById('alerts-list');
-  if (!listEl) return;
-  listEl.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-muted);">Loading alerts&hellip;</div>';
-
-  try {
-    const data = await apiFetch('/api/transactions/?per_page=200&page=1&fraud=true');
-    const txns = data.data || [];
-    if (txns.length > 0) {
-      const statuses = ['new', 'new', 'new', 'reviewed', 'reviewed', 'resolved'];
-      alertsViewState.allAlerts = txns.map((t, i) => {
-        const isFraud = !!t.is_fraud;
-        const riskScore = isFraud
-          ? 80 + Math.floor(Math.random() * 19)
-          : 40 + Math.floor(Math.random() * 39);
-        return {
-          id: t.id,
-          amount: t.amount,
-          merchant: t.merchant || '—',
-          timestamp: t.timestamp,
-          riskScore,
-          riskLevel: riskScore >= 90 ? 'CRITICAL' : riskScore >= 60 ? 'ELEVATED' : 'LOW',
-          type: isFraud ? 'fraud' : 'suspicious',
-          status: statuses[i % statuses.length],
-          detectionLogic: DETECTION_PHRASES[i % DETECTION_PHRASES.length],
-        };
-      });
-    } else {
-      alertsViewState.allAlerts = generateSampleAlerts();
-    }
-  } catch (e) {
-    alertsViewState.allAlerts = generateSampleAlerts();
-  }
-
-  applyAlertsFilters();
-  updateAlertTabCounts();
+  const currentTab = alertsViewState.activeTab;
+  // Map UI tab names to backend status values
+  const tabToStatus = { 'all': 'all', 'new': 'new', 'reviewed': 'review', 'resolved': 'resolved', 'dismissed': 'dismissed' };
+  const status = tabToStatus[currentTab] || currentTab;
+  await loadAlerts(status);
 }
 
 function applyAlertsFilters() {
@@ -935,21 +929,24 @@ function renderAlertsPage() {
   const items = filtered.slice(start, start + perPage);
 
   if (!items.length) {
-    listEl.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-muted);font-size:.95rem;">No alerts match the selected filters.</div>';
+    listEl.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-muted);font-size:.95rem;">No alerts found for this status.</div>';
     return;
   }
 
   listEl.innerHTML = items.map(a => {
     const isFraud = a.type === 'fraud';
     const isResolved = a.status === 'resolved';
-    const borderCls = isResolved ? 'resolved-border' : isFraud ? 'fraud-border' : 'suspicious-border';
-    const statusCls = isResolved ? 'resolved' : isFraud ? 'fraud' : 'suspicious';
-    const iconBg = isFraud ? '#fef2f2' : isResolved ? '#f0fdf4' : '#fff7ed';
-    const iconColor = isFraud ? '#dc2626' : isResolved ? '#16a34a' : '#ea580c';
-    const label = isResolved ? 'RESOLVED' : isFraud ? 'FRAUD' : 'SUSPICIOUS';
+    const isDismissed = a.status === 'dismissed';
+    const isReviewed = a.status === 'reviewed';
+    const isNew = a.status === 'new';
+    const borderCls = isResolved ? 'resolved-border' : isDismissed ? 'resolved-border' : isFraud ? 'fraud-border' : 'suspicious-border';
+    const statusCls = isResolved ? 'resolved' : isDismissed ? 'resolved' : isFraud ? 'fraud' : 'suspicious';
+    const iconBg = isFraud ? '#fef2f2' : (isResolved || isDismissed) ? '#f0fdf4' : '#fff7ed';
+    const iconColor = isFraud ? '#dc2626' : (isResolved || isDismissed) ? '#16a34a' : '#ea580c';
+    const label = isResolved ? 'RESOLVED' : isDismissed ? 'DISMISSED' : isFraud ? 'FRAUD' : 'SUSPICIOUS';
     const icon = isFraud
       ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`
-      : isResolved
+      : (isResolved || isDismissed)
         ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>`
         : `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
 
@@ -962,6 +959,46 @@ function renderAlertsPage() {
 
     const amtStr = fmtMoney(a.amount);
 
+    // Build action buttons based on alert status
+    let actionsHtml = '';
+    if (isResolved || isDismissed) {
+      // Terminal states — no actions
+      actionsHtml = `<div class="alert-actions"><span style="font-size:.8rem;font-weight:700;color:#94a3b8;letter-spacing:.5px;">${isResolved ? 'RESOLVED' : 'DISMISSED'}</span></div>`;
+    } else if (isReviewed) {
+      // Reviewed: only RESOLVE + 3-dot menu
+      actionsHtml = `
+      <div class="alert-actions">
+        <div class="action-row">
+          <button class="alert-dismiss-btn" data-id="${a.id}" onclick="resolveAlertAction('${a.id}')">RESOLVE</button>
+          <div class="alert-menu-wrap" style="position:relative;display:inline-block;">
+            <button class="alert-menu-btn" title="More options" onclick="toggleAlertMenu(event, '${a.id}')">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+            </button>
+            <div class="alert-menu-dropdown" id="menu-${a.id}" style="display:none;position:absolute;right:0;top:110%;background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:999;min-width:160px;overflow:hidden;">
+              <button onclick="dismissAlertAction('${a.id}')" style="display:block;width:100%;padding:10px 16px;text-align:left;border:none;background:none;font-family:inherit;font-size:.85rem;color:#dc2626;cursor:pointer;font-weight:600;transition:background .15s;" onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background='none'">Dismiss Alert</button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    } else {
+      // New: REVIEW + RESOLVE + 3-dot menu
+      actionsHtml = `
+      <div class="alert-actions">
+        <button class="alert-review-btn" data-id="${a.id}" onclick="reviewAlert(this)">REVIEW</button>
+        <div class="action-row">
+          <button class="alert-dismiss-btn" data-id="${a.id}" onclick="resolveAlertAction('${a.id}')">RESOLVE</button>
+          <div class="alert-menu-wrap" style="position:relative;display:inline-block;">
+            <button class="alert-menu-btn" title="More options" onclick="toggleAlertMenu(event, '${a.id}')">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+            </button>
+            <div class="alert-menu-dropdown" id="menu-${a.id}" style="display:none;position:absolute;right:0;top:110%;background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:999;min-width:160px;overflow:hidden;">
+              <button onclick="dismissAlertAction('${a.id}')" style="display:block;width:100%;padding:10px 16px;text-align:left;border:none;background:none;font-family:inherit;font-size:.85rem;color:#dc2626;cursor:pointer;font-weight:600;transition:background .15s;" onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background='none'">Dismiss Alert</button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    }
+
     return `
     <div class="alert-card ${borderCls} animate-in">
       <div class="alert-status ${statusCls}">
@@ -971,7 +1008,7 @@ function renderAlertsPage() {
       <div class="alert-details">
         <div class="detail-col col-txn">
           <span class="detail-label">TRANSACTION ID</span>
-          <span class="detail-value fw-600">#${a.id}</span>
+          <span class="detail-value fw-600">#${a.transaction_id || a.id}</span>
           <span class="detail-label" style="margin-top:14px;">TIME DETECTED</span>
           <span class="detail-value text-muted">${timeStr}</span>
         </div>
@@ -993,15 +1030,7 @@ function renderAlertsPage() {
           </div>
         </div>
       </div>
-      <div class="alert-actions">
-        <button class="alert-review-btn" data-id="${a.id}" onclick="openAlertReviewModal(this)">REVIEW</button>
-        <div class="action-row">
-          <button class="alert-dismiss-btn" data-id="${a.id}" onclick="dismissAlert(this)">DISMISS</button>
-          <button class="alert-menu-btn" title="More options">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
-          </button>
-        </div>
-      </div>
+      ${actionsHtml}
     </div>`;
   }).join('');
 }
@@ -1068,67 +1097,68 @@ function exportAlertsCSV() {
   showToast(`Exported ${list.length} alerts ✓`, 'success');
 }
 
-function openAlertReviewModal(btn) {
-  const id = btn ? btn.dataset.id : '';
-  const alert = alertsViewState.allAlerts.find(a => a.id === id);
-  if (!alert) { showToast('Alert data unavailable', 'error'); return; }
-  const overlay = document.getElementById('modal-overlay');
-  const existing = document.getElementById('alert-review-modal');
-  if (existing) existing.remove();
-  const modal = document.createElement('div');
-  modal.className = 'modal profile-modal-wide';
-  modal.id = 'alert-review-modal';
-  const riskCls = alert.riskScore >= 90 ? 'red' : alert.riskScore >= 60 ? 'orange' : 'green';
-  modal.innerHTML = `
-    <div class="modal-header">
-      <h2>🔍 Alert Review — #${alert.id.substring(0, 14).toUpperCase()}</h2>
-      <button class="close-btn">&times;</button>
-    </div>
-    <div class="modal-body">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px 24px;margin-bottom:20px;">
-        <div class="prof-detail-row"><span class="prof-detail-label">Transaction ID</span><span class="prof-detail-value" style="font-family:monospace;">${alert.id}</span></div>
-        <div class="prof-detail-row"><span class="prof-detail-label">Amount</span><span class="prof-detail-value" style="font-size:1.2rem;font-weight:700;color:var(--navy);">${fmtMoney(alert.amount)}</span></div>
-        <div class="prof-detail-row"><span class="prof-detail-label">Merchant</span><span class="prof-detail-value">${alert.merchant}</span></div>
-        <div class="prof-detail-row"><span class="prof-detail-label">Risk Score</span><span class="prof-detail-value risk-score-val ${riskCls}">${alert.riskScore} <span class="risk-badge ${riskCls}">${alert.riskLevel}</span></span></div>
-        <div class="prof-detail-row"><span class="prof-detail-label">Time Detected</span><span class="prof-detail-value">${fmtDate(alert.timestamp)}</span></div>
-        <div class="prof-detail-row"><span class="prof-detail-label">Alert Type</span><span class="prof-detail-value">${alert.type.toUpperCase()}</span></div>
-      </div>
-      <div style="background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:20px;">
-        <div style="font-size:.72rem;font-weight:700;color:#64748b;letter-spacing:.05em;margin-bottom:8px;">DETECTION LOGIC</div>
-        <p style="font-size:.9rem;color:#334155;line-height:1.6;">${alert.detectionLogic}</p>
-      </div>
-      <div style="display:flex;gap:10px;justify-content:flex-end;">
-        <button class="btn btn-outline" onclick="dismissAlert(null,'${alert.id}');document.getElementById('modal-overlay').classList.remove('active');document.getElementById('alert-review-modal').remove();">Dismiss Alert</button>
-        <button class="btn btn-navy" onclick="resolveAlert('${alert.id}');document.getElementById('modal-overlay').classList.remove('active');document.getElementById('alert-review-modal').remove();">Mark as Resolved</button>
-      </div>
-    </div>`;
-  overlay.appendChild(modal);
-  document.querySelectorAll('.modal').forEach(m => m.classList.remove('active'));
-  overlay.classList.add('active');
-  modal.classList.add('active');
-  modal.querySelector('.close-btn').addEventListener('click', () => {
-    overlay.classList.remove('active');
-    document.querySelectorAll('.modal').forEach(m => m.classList.remove('active'));
-    modal.remove();
-  });
+async function updateAlertStatus(id, newStatus) {
+  try {
+    const r = await fetch(`${API}/api/alerts/${id}/status`, {
+      method: 'PATCH',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${window.FG_TOKEN || ''}`
+      },
+      body: JSON.stringify({ status: newStatus }),
+    });
+    if (!r.ok) throw new Error('Failed to update alert status');
+    
+    // Reload current alerts tab
+    const tabStatus = alertsViewState.activeTab === 'reviewed' ? 'review' : alertsViewState.activeTab;
+    await loadAlerts(tabStatus);
+    
+    showToast(`Alert marked as ${newStatus} ✓`, 'success');
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
 }
 
+function reviewAlert(btn, id) {
+  const alertId = id || (btn ? btn.dataset.id : '');
+  updateAlertStatus(alertId, 'review');
+}
+
+function resolveAlertAction(id) {
+  updateAlertStatus(id, 'resolved');
+}
+
+function dismissAlertAction(id) {
+  // Close any open dropdown first
+  document.querySelectorAll('.alert-menu-dropdown').forEach(m => m.style.display = 'none');
+  updateAlertStatus(id, 'dismissed');
+}
+
+// Keep legacy name aliases for backward compat
 function dismissAlert(btn, id) {
   const alertId = id || (btn ? btn.dataset.id : '');
-  const alert = alertsViewState.allAlerts.find(a => a.id === alertId);
-  if (alert) { alert.status = 'reviewed'; }
-  applyAlertsFilters();
-  updateAlertTabCounts();
-  showToast('Alert dismissed ✓', 'success');
+  resolveAlertAction(alertId);
 }
 
 function resolveAlert(id) {
-  const alert = alertsViewState.allAlerts.find(a => a.id === id);
-  if (alert) { alert.status = 'resolved'; }
-  applyAlertsFilters();
-  updateAlertTabCounts();
-  showToast('Alert marked as resolved ✓', 'success');
+  resolveAlertAction(id);
 }
+
+function toggleAlertMenu(event, id) {
+  event.stopPropagation();
+  const menuEl = document.getElementById(`menu-${id}`);
+  if (!menuEl) return;
+  // Close all other open dropdowns
+  document.querySelectorAll('.alert-menu-dropdown').forEach(m => {
+    if (m.id !== `menu-${id}`) m.style.display = 'none';
+  });
+  menuEl.style.display = menuEl.style.display === 'none' ? 'block' : 'none';
+}
+
+// Close alert menus on outside click
+document.addEventListener('click', () => {
+  document.querySelectorAll('.alert-menu-dropdown').forEach(m => m.style.display = 'none');
+});
 
 function openSystemAuditModal() {
   const overlay = document.getElementById('modal-overlay');
@@ -1175,7 +1205,9 @@ function initAlertsView() {
       tab.classList.add('active');
       alertsViewState.activeTab = tab.dataset.tab;
       alertsViewState.page = 1;
-      applyAlertsFilters();
+      
+      const tabToStatus = { 'all': 'all', 'new': 'new', 'reviewed': 'review', 'resolved': 'resolved', 'dismissed': 'dismissed' };
+      loadAlerts(tabToStatus[tab.dataset.tab] || tab.dataset.tab);
     });
   });
 
@@ -2099,3 +2131,20 @@ document.addEventListener('DOMContentLoaded', () => {
     if (isOnline) refreshAll();
   });
 });
+
+/* ══════════════════════════════════════════════════════════════
+   SOCKET.IO INTEGRATION
+══════════════════════════════════════════════════════════════ */
+if (typeof io !== 'undefined') {
+  const socket = io(window.location.origin);
+  
+  socket.on("new_alert", () => {
+    const currentAlertStatus = alertsViewState.activeTab === 'reviewed' ? 'review' : alertsViewState.activeTab;
+    loadAlerts(currentAlertStatus || "all");
+  });
+
+  socket.on("new_transaction", () => {
+    if (typeof loadDashboardData === "function") loadDashboardData();
+    if (typeof loadTransactionsView === "function") loadTransactionsView();
+  });
+}

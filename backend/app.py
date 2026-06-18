@@ -10,20 +10,27 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from flask import Flask, jsonify, redirect, send_file, send_from_directory, url_for
 from flask_cors import CORS
+from flask_socketio import SocketIO
+
+socketio = SocketIO(cors_allowed_origins="*", async_mode='eventlet')
 
 
 def create_app() -> Flask:
     app = Flask(__name__)
     CORS(app)
+    socketio.init_app(app)
 
     # ── API blueprints
-    from backend.routes.transactions import transactions_bp
+    from backend.routes.transactions import transactions_bp, external_bp
     from backend.routes.stats        import stats_bp
     from backend.routes.auth         import auth_bp
+    from backend.routes.alerts       import alerts_bp
 
     app.register_blueprint(transactions_bp, url_prefix='/api/transactions')
+    app.register_blueprint(external_bp,     url_prefix='/api/external')
     app.register_blueprint(stats_bp,        url_prefix='/api/stats')
     app.register_blueprint(auth_bp,         url_prefix='/api/auth')
+    app.register_blueprint(alerts_bp,       url_prefix='/api/alerts')
 
     # ── Health check
     @app.route('/api/health')
@@ -63,6 +70,22 @@ def create_app() -> Flask:
     def frontend_files(filename):
         return send_from_directory(
             os.path.join(os.path.dirname(__file__), '..', 'frontend'), filename
+        )
+
+    # ── SecurePay Dummy Transaction App ──────────────────────────────
+    @app.route('/pay')
+    def payment_app():
+        return send_file(
+            os.path.join(
+                os.path.dirname(__file__), '..', 'dummy_transaction_app', 'index.html'
+            )
+        )
+
+    @app.route('/dummy_transaction_app/<path:filename>')
+    def dummy_app_static(filename):
+        return send_from_directory(
+            os.path.join(os.path.dirname(__file__), '..', 'dummy_transaction_app'),
+            filename
         )
 
     return app

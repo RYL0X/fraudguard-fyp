@@ -37,8 +37,33 @@ CREATE TABLE IF NOT EXISTS transactions (
     day_of_week   TINYINT        DEFAULT 0,
     is_fraud      TINYINT(1)     DEFAULT 0,
     predicted_fraud TINYINT(1)   DEFAULT NULL,
-    confidence    DECIMAL(6,4)   DEFAULT NULL,
+    confidence    FLOAT          DEFAULT 0,
+    risk_level    VARCHAR(50)    DEFAULT 'LOW',
+    source        VARCHAR(50)    DEFAULT 'system',
+    decision      VARCHAR(50)    DEFAULT 'approved',
+    customer_name VARCHAR(100)   NULL,
+    customer_email VARCHAR(150)  NULL,
+    card_last4    VARCHAR(10)    NULL,
     created_at    TIMESTAMP      DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+"""
+
+CREATE_ALERTS_TABLE = """
+CREATE TABLE IF NOT EXISTS alerts (
+    id VARCHAR(64) PRIMARY KEY,
+    transaction_id VARCHAR(64),
+    amount DECIMAL(12,2),
+    merchant VARCHAR(255),
+    category VARCHAR(100),
+    location VARCHAR(255),
+    risk_score FLOAT,
+    risk_level VARCHAR(50),
+    status VARCHAR(50) DEFAULT 'new',
+    source VARCHAR(50),
+    message TEXT,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    reviewed_at DATETIME NULL,
+    resolved_at DATETIME NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 """
 
@@ -66,8 +91,31 @@ def main():
                                    password=DB_PASS, database=DB_NAME)
     cur  = conn.cursor()
     cur.execute(CREATE_TABLE)
+    cur.execute(CREATE_ALERTS_TABLE)
     conn.commit()
-    print("✅ Table `transactions` ready.")
+    print("✅ Tables `transactions` and `alerts` ready.")
+
+    # ── Safe ALTER TABLE logic for missing columns in transactions ────
+    alter_queries = [
+        "ALTER TABLE transactions ADD COLUMN confidence FLOAT DEFAULT 0",
+        "ALTER TABLE transactions ADD COLUMN risk_level VARCHAR(50) DEFAULT 'LOW'",
+        "ALTER TABLE transactions ADD COLUMN source VARCHAR(50) DEFAULT 'system'",
+        "ALTER TABLE transactions ADD COLUMN decision VARCHAR(50) DEFAULT 'approved'",
+        "ALTER TABLE transactions ADD COLUMN customer_name VARCHAR(100) NULL",
+        "ALTER TABLE transactions ADD COLUMN customer_email VARCHAR(150) NULL",
+        "ALTER TABLE transactions ADD COLUMN card_last4 VARCHAR(10) NULL"
+    ]
+    
+    for query in alter_queries:
+        try:
+            cur.execute(query)
+        except mysql.connector.Error as err:
+            # 1060 is the error code for "Duplicate column name"
+            if err.errno == 1060:
+                pass
+            else:
+                print(f"⚠️  Error executing {query}: {err}")
+    conn.commit()
 
     # ── Load CSV ────────────────────────────────────────────────────────────
     csv_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
