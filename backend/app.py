@@ -88,6 +88,43 @@ def create_app() -> Flask:
             filename
         )
 
+    @app.route('/api/test-email')
+    def test_email():
+        try:
+            from backend.notifications import send_email
+            import os
+
+            recipient = os.getenv("ALERT_EMAIL") or os.getenv("GMAIL_USER")
+
+            if not recipient:
+                return jsonify({
+                    "success": False,
+                    "error": "ALERT_EMAIL and GMAIL_USER are missing"
+                }), 500
+
+            result = send_email(recipient, {
+                "amount": 999,
+                "merchant": "Render Email Test",
+                "location": "Render",
+                "risk_level": "HIGH",
+                "confidence": 99,
+                "decision": "blocked",
+                "timestamp": "Render test"
+            })
+
+            return jsonify({
+                "success": True,
+                "message": "test email endpoint executed",
+                "result": str(result)
+            })
+
+        except Exception as e:
+            print("EMAIL TEST ERROR:", str(e))
+            return jsonify({
+                "success": False,
+                "error": str(e)
+            }), 500
+
     return app
 
 
